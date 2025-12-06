@@ -32,7 +32,10 @@ connectDB().catch((error) => {
 
 const app = express();
 const server = http.createServer(app);
-const clientOrigin = process.env.CLIENT_URL || "https://zayan-ruddy.vercel.app";
+const clientOrigin =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:3000"
+    : process.env.CLIENT_URL || "https://zayan-ruddy.vercel.app";
 
 // Initialize Socket.io for real-time features
 const io = new Server(server, {
