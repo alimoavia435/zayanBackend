@@ -34,13 +34,13 @@ const app = express();
 const server = http.createServer(app);
 const clientOrigin =
   process.env.NODE_ENV === "development"
-    ? "https://zayan-ruddy.vercel.app"
+    ? "http://localhost:3000"
     : process.env.CLIENT_URL || "https://zayan-ruddy.vercel.app";
-
 // Initialize Socket.io for real-time features
 const io = new Server(server, {
   cors: {
-    origin: clientOrigin,
+    // origin: clientOrigin,
+    origin:"*",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   },
@@ -70,7 +70,8 @@ io.on("connection", (socket) => {
 
 app.use(
   cors({
-    origin: clientOrigin,
+    // origin: clientOrigin,
+    origin: (origin, callback) => callback(null, origin),
     credentials: true,
   })
 );
