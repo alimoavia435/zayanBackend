@@ -40,7 +40,9 @@ const clientOrigin =
 const io = new Server(server, {
   cors: {
     // origin: clientOrigin,
-    origin:"*",
+    origin: (origin, callback) => {
+      callback(null, origin || "*");
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   },
