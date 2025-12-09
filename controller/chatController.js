@@ -134,13 +134,26 @@ export const startConversation = async (req, res) => {
     }
 
     // Build query based on whether it's property or product
-    const query = propertyId 
+    const query = propertyId
       ? { buyerId, sellerId, propertyId }
       : { buyerId, sellerId, productId };
 
+    // Try to reuse an existing conversation
     let conversation = await Conversation.findOne(query).populate(
       conversationPopulateConfig
     );
+
+    // Fallback: if no exact match, reuse any conversation between the same users
+    // for the same channel type (property vs product) to avoid duplicate threads.
+    if (!conversation) {
+      const fallbackQuery = propertyId
+        ? { buyerId, sellerId, propertyId: { $exists: true } }
+        : { buyerId, sellerId, productId: { $exists: true } };
+
+      conversation = await Conversation.findOne(fallbackQuery).populate(
+        conversationPopulateConfig
+      );
+    }
 
     if (!conversation) {
       conversation = await Conversation.create({
@@ -155,8 +168,11 @@ export const startConversation = async (req, res) => {
       conversation = await conversation.populate(conversationPopulateConfig);
     }
 
-    // Determine role for normalization
-    const role = productId ? "ecommerce_buyer" : "realestate_buyer";
+    // Determine role for normalization (prefer the persisted conversation's type)
+    const role =
+      conversation?.productId || productId
+        ? "ecommerce_buyer"
+        : "realestate_buyer";
 
     const messages = await Message.find({ conversationId: conversation._id })
       .sort({ createdAt: 1 })
