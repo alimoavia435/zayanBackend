@@ -267,7 +267,9 @@ export const getCurrentUser = async (req, res) => {
         city: profileData.city || '',
         location,
         joinDate: `Joined in ${joinDate}`,
-        isVerified: user.isVerified || false,
+        isVerified: user.isVerified || false, // Email verification status
+        verificationStatus: user.verificationStatus || null, // Seller/Agent verification status
+        verificationDocuments: user.verificationDocuments || [], // Verification documents
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },

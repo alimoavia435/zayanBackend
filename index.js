@@ -13,6 +13,25 @@ import chatRoutes from "./routes/chatRoutes.js";
 import storeRoutes from "./routes/storeRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
+import verificationRoutes from "./routes/verificationRoutes.js";
+import reviewRoutes from "./routes/reviewRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import behaviorRoutes from "./routes/behaviorRoutes.js";
+import recommendationRoutes from "./routes/recommendationRoutes.js";
+import savedSearchRoutes from "./routes/savedSearchRoutes.js";
+import adminAuthRoutes from "./routes/adminAuthRoutes.js";
+import adminDashboardRoutes from "./routes/adminDashboardRoutes.js";
+import adminVerificationRoutes from "./routes/adminVerificationRoutes.js";
+import adminUserRoutes from "./routes/adminUserRoutes.js";
+import adminModerationRoutes from "./routes/adminModerationRoutes.js";
+import adminBlogRoutes from "./routes/adminBlogRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
+import adminChatRoutes from "./routes/adminChatRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+import { getSupportConversation, sendSupportMessage } from "./controller/supportChatController.js";
+import { protect } from "./middleware/authMiddleware.js";
 
 dotenv.config();
 
@@ -107,6 +126,33 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/stores", storeRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/verification", verificationRoutes);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/behavior", behaviorRoutes);
+app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/saved-searches", savedSearchRoutes);
+
+// Admin routes - separate namespace
+app.use("/api/admin/auth", adminAuthRoutes);
+app.use("/api/admin/dashboard", adminDashboardRoutes);
+app.use("/api/admin/verifications", adminVerificationRoutes);
+app.use("/api/admin/users", adminUserRoutes);
+app.use("/api/admin/moderation", adminModerationRoutes);
+app.use("/api/admin/blogs", adminBlogRoutes);
+app.use("/api/admin/chats", adminChatRoutes);
+
+// Public blog routes
+app.use("/api/blogs", blogRoutes);
+
+// Report routes
+app.use("/api/reports", reportRoutes);
+
+// Support chat routes (user)
+app.get("/api/support/conversation", protect, getSupportConversation);
+app.post("/api/support/message", protect, sendSupportMessage);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => {

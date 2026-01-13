@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Conversation from "../model/Conversation.js";
 import Message from "../model/Message.js";
 import User from "../model/User.js";
+import { createNotification } from "./notificationController.js";
 
 const conversationPopulateConfig = [
   {
@@ -313,6 +314,14 @@ export const sendMessage = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    // Check if user has chat access
+    const user = await User.findById(senderId);
+    if (user?.chatAccess === "suspended") {
+      return res.status(403).json({
+        message: "Your chat access has been suspended. Please contact support.",
+      });
+    }
+
     // Update lastSeen for the sender
     await User.findByIdAndUpdate(senderId, { lastSeen: new Date() });
 
@@ -409,6 +418,35 @@ export const sendMessage = async (req, res) => {
         conversationId,
         message: formattedMessage,
       });
+
+      // Get sender info for notification
+      const sender = await User.findById(senderId).select("name firstName lastName");
+      const senderName = sender?.name || sender?.firstName || "Someone";
+
+      // Create notification for receiver
+      try {
+        await createNotification({
+          userId: receiverId,
+          type: "new_message",
+          title: "New Message",
+          message: `${senderName}: ${trimmedMessage || (mediaUrl ? fileName || "Sent an attachment" : "Sent a message")}`,
+          actionUrl: conversation.productId 
+            ? `/ecommerce/buyer/messages/${conversationId}`
+            : `/real-estate/buyer/messages/${conversationId}`,
+          metadata: {
+            conversationId: conversationId.toString(),
+            senderId: senderId.toString(),
+            messageId: newMessage._id.toString(),
+          },
+          relatedId: conversationId,
+          relatedType: "conversation",
+          sendEmail: true,
+          io,
+        });
+      } catch (notifError) {
+        console.error("Failed to create notification for message:", notifError);
+        // Don't fail the message send if notification fails
+      }
     }
 
     return res.status(201).json({ message: formattedMessage });

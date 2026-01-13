@@ -1,0 +1,83 @@
+import mongoose from "mongoose";
+
+const notificationSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    type: {
+      type: String,
+      enum: [
+        "new_message",
+        "new_review",
+        "listing_inquiry",
+        "order_placed",
+        "verification_approved",
+        "verification_rejected",
+      ],
+      required: true,
+      index: true,
+    },
+    title: {
+      type: String,
+      required: true,
+    },
+    message: {
+      type: String,
+      required: true,
+    },
+    read: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    readAt: {
+      type: Date,
+      default: null,
+    },
+    actionUrl: {
+      type: String,
+      default: null, // URL to navigate when notification is clicked
+    },
+    metadata: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+    // Reference to related entities (optional)
+    relatedId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      index: true,
+    },
+    relatedType: {
+      type: String,
+      enum: ["conversation", "review", "product", "property", "order", "verification"],
+      default: null,
+    },
+    emailSent: {
+      type: Boolean,
+      default: false,
+    },
+    emailSentAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { timestamps: true }
+);
+
+// Compound index for efficient queries
+notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, type: 1, createdAt: -1 });
+
+// TTL index to automatically delete notifications older than 90 days (optional)
+// notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7776000 }); // 90 days
+
+const Notification = mongoose.model("Notification", notificationSchema);
+
+export default Notification;
+

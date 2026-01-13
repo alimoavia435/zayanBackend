@@ -483,7 +483,7 @@ export const getAllProductsForBuyer = async (req, res) => {
 // Helper function to update product rating based on reviews
 const updateProductRating = async (productId) => {
   try {
-    const reviews = await Review.find({ product: productId });
+    const reviews = await Review.find({ type: "product", product: productId });
     if (reviews.length === 0) {
       await Product.findByIdAndUpdate(productId, { rating: 0 });
       return;
@@ -540,6 +540,7 @@ export const createProductReview = async (req, res) => {
 
     // Check if user already reviewed this product
     const existingReview = await Review.findOne({
+      type: "product",
       product: id,
       user: req.user._id,
     });
@@ -547,13 +548,15 @@ export const createProductReview = async (req, res) => {
     let review;
     if (existingReview) {
       // Update existing review
+      existingReview.type = "product"; // Ensure type is set for backward compatibility
       existingReview.rating = rating;
       existingReview.title = title || "";
       existingReview.comment = comment || "";
       review = await existingReview.save();
     } else {
-      // Create new review
+      // Create new review with type 'product' for backward compatibility
       review = await Review.create({
+        type: "product",
         product: id,
         user: req.user._id,
         rating,
@@ -630,7 +633,10 @@ export const getProductReviews = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const reviews = await Review.find({ product: id })
+    const reviews = await Review.find({ 
+      type: "product",
+      product: id 
+    })
       .populate("user", "_id")
       .sort({ createdAt: -1 })
       .lean();
@@ -665,6 +671,8 @@ export const getProductReviews = async (req, res) => {
             name: userName,
             avatar: userAvatar,
             email: userEmail,
+            verificationStatus: buyerProfile?.verificationStatus || null,
+            isVerified: buyerProfile?.isVerified || false,
           },
           rating: review.rating,
           title: review.title,

@@ -17,3 +17,16 @@ export const protect = async (req, res, next) => {
     res.status(401).json({ message: "Not authorized" });
   }
 };
+
+export const admin = async (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Not authorized, please login first" });
+  }
+
+  // Check if user has admin role
+  if (!req.user.roles || !req.user.roles.includes("admin")) {
+    return res.status(403).json({ message: "Access denied. Admin role required." });
+  }
+
+  next();
+};

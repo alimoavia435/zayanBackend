@@ -54,8 +54,47 @@ const userSchema = new mongoose.Schema(
     passwordResetExpiresAt: { type: Date },
     passwordResetOtpVerifiedAt: { type: Date },
     
+    // Seller/Agent verification system
+    verificationStatus: { 
+      type: String, 
+      enum: ["pending", "approved", "rejected"], 
+      default: null 
+    },
+    verificationDocuments: { type: [String], default: [] },
+    
     // Last seen timestamp for chat functionality
     lastSeen: { type: Date, default: Date.now },
+    
+    // Account status management
+    accountStatus: {
+      type: String,
+      enum: ["active", "suspended", "banned"],
+      default: "active",
+    },
+    suspendedAt: { type: Date, default: null },
+    bannedAt: { type: Date, default: null },
+    suspensionReason: { type: String, default: null },
+    banReason: { type: String, default: null },
+    
+    // Role management
+    disabledRoles: { type: [String], default: [] }, // Roles that have been force-disabled by admin
+    
+    // Chat moderation
+    chatAccess: {
+      type: String,
+      enum: ["active", "suspended", "restricted"],
+      default: "active",
+    },
+    chatSuspendedAt: { type: Date, default: null },
+    chatSuspensionReason: { type: String, default: null },
+    chatWarnings: [
+      {
+        warning: String,
+        reason: String,
+        warnedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+        warnedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

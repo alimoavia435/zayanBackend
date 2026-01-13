@@ -31,6 +31,16 @@ const conversationSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // Support chat flag (admin-user conversation)
+    isSupportChat: {
+      type: Boolean,
+      default: false,
+    },
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      default: null,
+    },
   },
   { timestamps: true }
 );

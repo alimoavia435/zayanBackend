@@ -92,6 +92,9 @@ export const buildProfileResponse = async (
       ? user.rating
       : 0
 
+  // Check if user is verified (for seller/agent verification)
+  const isVerified = user.verificationStatus === "approved";
+  
   const response = {
     id: user._id,
     firstName,
@@ -106,7 +109,9 @@ export const buildProfileResponse = async (
     certifications: profileData.certifications || '',
     languages: profileData.languages || [],
     avatar: profileData.avatar || '',
-    rating: rating
+    rating: rating,
+    isVerified: isVerified,
+    verificationStatus: user.verificationStatus || null
   }
 
   // Add role-specific stats

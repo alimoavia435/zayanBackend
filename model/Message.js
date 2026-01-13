@@ -30,6 +30,11 @@ const messageSchema = new mongoose.Schema(
     mimeType: {
       type: String,
     },
+    // Support chat marker
+    isAdminMessage: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

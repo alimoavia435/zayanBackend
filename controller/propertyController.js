@@ -325,6 +325,8 @@ export const getAllPropertiesForBuyer = async (req, res) => {
             avatar: sellerAvatar,
             rating: sellerRating,
             email: sellerEmail,
+            verificationStatus: sellerProfile?.verificationStatus || null,
+            isVerified: sellerProfile?.isVerified || false,
           },
           createdAt: property.createdAt,
           updatedAt: property.updatedAt,
