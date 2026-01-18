@@ -24,9 +24,10 @@ router
   .put(protect, updateProperty)
   .delete(protect, deleteProperty);
 
-// Buyer routes
-router.get("/buyer/all", protect, getAllPropertiesForBuyer);
-router.get("/buyer/:id", protect, getPropertyByIdForBuyer);
+// Buyer routes - Public access (for landing page)
+router.get("/buyer/all", getAllPropertiesForBuyer);
+// Protected route for authenticated buyers (for detailed views)
+router.get("/buyer/:id", getPropertyByIdForBuyer);
 
 // Get properties by seller ID
 router.get("/seller/:id", protect, getPropertiesBySellerId);

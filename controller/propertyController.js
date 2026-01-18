@@ -202,12 +202,10 @@ export const deleteProperty = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-// get all properties for buyer
+// get all properties for buyer (public access for landing page)
 export const getAllPropertiesForBuyer = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    // Removed authentication requirement - this endpoint is now public for landing page
 
     // Get query parameters for filtering
     const {
@@ -347,9 +345,7 @@ export const getAllPropertiesForBuyer = async (req, res) => {
 
 export const getPropertyByIdForBuyer = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    // Removed authentication requirement - this endpoint is now public for property details
 
     const { id } = req.params;
 

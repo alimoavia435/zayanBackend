@@ -270,6 +270,13 @@ export const getCurrentUser = async (req, res) => {
         isVerified: user.isVerified || false, // Email verification status
         verificationStatus: user.verificationStatus || null, // Seller/Agent verification status
         verificationDocuments: user.verificationDocuments || [], // Verification documents
+        // Account status fields
+        accountStatus: user.accountStatus || 'active',
+        disabledRoles: user.disabledRoles || [],
+        suspendedAt: user.suspendedAt || null,
+        bannedAt: user.bannedAt || null,
+        suspensionReason: user.suspensionReason || null,
+        banReason: user.banReason || null,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },

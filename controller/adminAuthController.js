@@ -97,3 +97,47 @@ export const getCurrentAdmin = async (req, res) => {
   }
 };
 
+// @desc    Change admin password
+// @route   PUT /api/admin/auth/change-password
+// @access  Private (Admin)
+export const changeAdminPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const adminId = req.admin.id;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current password and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters long" });
+    }
+
+    // Find admin
+    const admin = await Admin.findById(adminId);
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Verify current password
+    const isMatch = await admin.matchPassword(currentPassword);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    // Update password
+    admin.password = newPassword; // Will be hashed by pre-save hook
+    await admin.save();
+
+    res.json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (err) {
+    console.error("Change admin password error:", err);
+    res.status(500).json({ message: err.message || "Server error" });
+  }
+};
+
