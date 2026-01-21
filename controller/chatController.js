@@ -115,6 +115,7 @@ const normalizeConversation = (conversation, role) => {
       null,
     updatedAt: conversation.updatedAt,
     createdAt: conversation.createdAt,
+    isSupportChat: conversation.isSupportChat || false,
   };
 };
 

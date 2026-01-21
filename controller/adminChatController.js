@@ -90,10 +90,11 @@ export const getConversationDetails = async (req, res) => {
       flagsMap[flag.messageId].push(flag);
     });
 
-    // Attach flags to messages
+    // Attach flags to messages and mark admin messages
     const messagesWithFlags = messages.map((msg) => ({
       ...msg,
       flags: flagsMap[msg._id] || [],
+      isAdminMessage: msg.isAdminMessage || false,
     }));
 
     return res.json({

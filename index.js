@@ -32,6 +32,8 @@ import adminChatRoutes from "./routes/adminChatRoutes.js";
 import adminReviewRoutes from "./routes/adminReviewRoutes.js";
 import adminAnalyticsRoutes from "./routes/adminAnalyticsRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import policyRoutes from "./routes/policyRoutes.js";
+import adminPolicyRoutes from "./routes/adminPolicyRoutes.js";
 import { getSupportConversation, sendSupportMessage } from "./controller/supportChatController.js";
 import { protect } from "./middleware/authMiddleware.js";
 
@@ -136,6 +138,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/behavior", behaviorRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/saved-searches", savedSearchRoutes);
+app.use("/api/policies", policyRoutes);
 
 // Admin routes - separate namespace
 app.use("/api/admin/auth", adminAuthRoutes);
@@ -147,6 +150,7 @@ app.use("/api/admin/blogs", adminBlogRoutes);
 app.use("/api/admin/chats", adminChatRoutes);
 app.use("/api/admin/reviews", adminReviewRoutes);
 app.use("/api/admin/analytics", adminAnalyticsRoutes);
+app.use("/api/admin/policies", adminPolicyRoutes);
 
 // Public blog routes
 app.use("/api/blogs", blogRoutes);

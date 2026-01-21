@@ -1,4 +1,5 @@
 import User from '../model/User.js'
+import Policy from '../model/Policy.js'
 import bcrypt from 'bcryptjs'
 import generateToken from '../utils/generateToken.js'
 import { sendOtpEmail } from '../utils/sendEmail.js'
@@ -11,7 +12,7 @@ const normalizeEmail = (value = "") => value.trim().toLowerCase()
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, country, state, city } = req.body
+    const { name, email, password, address, country, state, city, acceptedPolicies } = req.body
     const normalizedEmail = normalizeEmail(email)
 
     const userExists = await User.findOne({ email: normalizedEmail })
@@ -26,12 +27,47 @@ export const registerUser = async (req, res) => {
       name,
       email: normalizedEmail,
       password: hashedPassword,
+      address,
       country,
       state,
       city,
       otpCode: hashedOtp,
       otpExpiresAt: new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000)
     })
+
+    // Store legal policy acceptance (privacy & terms) if provided
+    try {
+      if (acceptedPolicies?.privacy === true || acceptedPolicies?.terms === true) {
+        const [privacyPolicy, termsPolicy] = await Promise.all([
+          acceptedPolicies?.privacy ? Policy.findOne({ type: "privacy" }).lean() : null,
+          acceptedPolicies?.terms ? Policy.findOne({ type: "terms" }).lean() : null,
+        ])
+
+        const updates = {}
+        const now = new Date()
+
+        if (privacyPolicy) {
+          updates["legalAcceptances.privacy"] = {
+            version: privacyPolicy.version,
+            acceptedAt: now,
+          }
+        }
+
+        if (termsPolicy) {
+          updates["legalAcceptances.terms"] = {
+            version: termsPolicy.version,
+            acceptedAt: now,
+          }
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await User.findByIdAndUpdate(user._id, { $set: updates })
+        }
+      }
+    } catch (legalError) {
+      // Don't block registration if legal tracking fails; just log
+      console.error("Failed to record legal acceptances:", legalError)
+    }
 
     try {
       await sendOtpEmail({ to: email, otp: plainOtp, name })

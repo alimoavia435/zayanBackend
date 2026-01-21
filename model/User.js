@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
         languages: { type: [String], default: [] },
         avatar: { type: String },
         rating: { type: Number, default: 0 },
+        address: { type: String },
         country: { type: String },
         state: { type: String },
         city: { type: String },
@@ -43,6 +44,7 @@ const userSchema = new mongoose.Schema(
     languages: { type: [String], default: [] },
     avatar: { type: String },
     rating: { type: Number, default: 0 },
+    address: { type: String },
     country: String,
     state: String,
     city: String,
@@ -95,6 +97,22 @@ const userSchema = new mongoose.Schema(
         warnedAt: { type: Date, default: Date.now },
       },
     ],
+
+    // Legal policy acceptances
+    legalAcceptances: {
+      privacy: {
+        version: { type: String, default: null },
+        acceptedAt: { type: Date, default: null },
+      },
+      terms: {
+        version: { type: String, default: null },
+        acceptedAt: { type: Date, default: null },
+      },
+      cookies: {
+        version: { type: String, default: null },
+        acceptedAt: { type: Date, default: null },
+      },
+    },
   },
   { timestamps: true }
 );
