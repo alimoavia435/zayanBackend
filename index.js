@@ -37,7 +37,10 @@ import adminPolicyRoutes from "./routes/adminPolicyRoutes.js";
 import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import adminSubscriptionRoutes from "./routes/adminSubscriptionRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
-import { getSupportConversation, sendSupportMessage } from "./controller/supportChatController.js";
+import {
+  getSupportConversation,
+  sendSupportMessage,
+} from "./controller/supportChatController.js";
 import { protect } from "./middleware/authMiddleware.js";
 import { checkExpiringSubscriptions } from "./utils/subscriptionExpirationService.js";
 
@@ -102,7 +105,7 @@ app.use(
     // origin: clientOrigin,
     origin: (origin, callback) => callback(null, origin),
     credentials: true,
-  })
+  }),
 );
 
 app.use(
@@ -112,24 +115,24 @@ app.use(
         req.rawBody = buf;
       }
     },
-  })
+  }),
 );
 app.use(cookieParser());
 
 // Health check endpoint (important for Render deployment)
 app.get("/", (req, res) => {
-  res.json({ 
-    status: "ok", 
+  res.json({
+    status: "ok",
     message: "Zayan Backend API is running",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 app.get("/health", (req, res) => {
-  res.json({ 
+  res.json({
     status: "healthy",
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -178,14 +181,17 @@ app.get("/api/support/conversation", protect, getSupportConversation);
 app.post("/api/support/message", protect, sendSupportMessage);
 
 // Subscription expiration check (runs every 6 hours)
-setInterval(async () => {
-  try {
-    await checkExpiringSubscriptions(io);
-    console.log("✅ Subscription expiration check completed");
-  } catch (error) {
-    console.error("❌ Subscription expiration check failed:", error);
-  }
-}, 6 * 60 * 60 * 1000); // 6 hours
+setInterval(
+  async () => {
+    try {
+      await checkExpiringSubscriptions(io);
+      console.log("✅ Subscription expiration check completed");
+    } catch (error) {
+      console.error("❌ Subscription expiration check failed:", error);
+    }
+  },
+  6 * 60 * 60 * 1000,
+); // 6 hours
 
 // Run immediately on startup (after server starts)
 setTimeout(async () => {
@@ -198,8 +204,15 @@ setTimeout(async () => {
 }, 5000); // Wait 5 seconds after server starts
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📡 Listening on 0.0.0.0:${PORT}`);
-});
+
+// Only listen if not running on Vercel
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || "development"}`);
+    console.log(`📡 Listening on 0.0.0.0:${PORT}`);
+  });
+}
+
+// Export for Vercel
+export default app;
