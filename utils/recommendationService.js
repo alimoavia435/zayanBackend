@@ -1,6 +1,7 @@
 import UserBehavior from "../model/UserBehavior.js";
 import Product from "../model/Product.js";
 import Property from "../model/Property.js";
+import FeaturedListing from "../model/FeaturedListing.js";
 import mongoose from "mongoose";
 
 // Get trending items based on recent activity
@@ -74,25 +75,54 @@ export const getTrendingItems = async (itemType, limit = 10, days = 7) => {
         .lean();
     }
 
-    // Merge items with their scores and maintain order
+    // Get active featured/boosted listings
+    const now = new Date();
+    const featuredListings = await FeaturedListing.find({
+      itemType,
+      endDate: { $gte: now },
+      startDate: { $lte: now },
+    }).lean();
+
+    // Create a map of itemId -> priorityScore
+    const featuredMap = new Map();
+    featuredListings.forEach((featured) => {
+      const itemIdStr = featured.itemId.toString();
+      const currentScore = featuredMap.get(itemIdStr) || 0;
+      // Use the higher priority score if multiple featured entries exist
+      featuredMap.set(itemIdStr, Math.max(currentScore, featured.priorityScore));
+    });
+
+    // Merge items with their scores and maintain order, applying featured/boosted boosts
     const itemsWithScores = trendingData
       .map((trending) => {
         const item = items.find(
           (i) => i._id.toString() === trending._id.toString()
         );
         if (!item) return null;
+
+        const itemIdStr = item._id.toString();
+        const featuredBoost = featuredMap.get(itemIdStr) || 0;
+        const finalScore = trending.totalScore + featuredBoost;
+
         return {
           ...item,
-          trendingScore: trending.totalScore,
+          trendingScore: finalScore,
+          baseScore: trending.totalScore,
+          featuredBoost,
           viewCount: trending.viewCount,
           clickCount: trending.clickCount,
           likeCount: trending.likeCount,
           messageCount: trending.messageCount,
+          isFeatured: featuredBoost > 0,
+          isBoosted: featuredListings.find(
+            (f) => f.itemId.toString() === itemIdStr && f.isBoosted
+          ) !== undefined,
         };
       })
-      .filter((item) => item !== null);
+      .filter((item) => item !== null)
+      .sort((a, b) => b.trendingScore - a.trendingScore); // Re-sort with boosted scores
 
-    return itemsWithScores;
+    return itemsWithScores.slice(0, limit);
   } catch (error) {
     console.error("getTrendingItems error", error);
     return [];
@@ -197,6 +227,21 @@ export const getRecommendations = async (userId, itemType, limit = 10) => {
       ];
     }
 
+    // Get active featured/boosted listings for boosting recommendations
+    const now = new Date();
+    const featuredListings = await FeaturedListing.find({
+      itemType,
+      endDate: { $gte: now },
+      startDate: { $lte: now },
+    }).lean();
+
+    const featuredMap = new Map();
+    featuredListings.forEach((featured) => {
+      const itemIdStr = featured.itemId.toString();
+      const currentScore = featuredMap.get(itemIdStr) || 0;
+      featuredMap.set(itemIdStr, Math.max(currentScore, featured.priorityScore));
+    });
+
     // Get recommended items
     let recommendedItems = [];
     if (itemType === "product") {
@@ -204,15 +249,34 @@ export const getRecommendations = async (userId, itemType, limit = 10) => {
         .populate("owner", "name firstName lastName avatar")
         .populate("store", "name location")
         .sort({ rating: -1, createdAt: -1 })
-        .limit(limit)
+        .limit(limit * 2) // Get more to allow for re-sorting
         .lean();
     } else if (itemType === "property") {
       recommendedItems = await Property.find(query)
         .populate("owner", "name firstName lastName avatar")
         .sort({ rating: -1, views: -1, createdAt: -1 })
-        .limit(limit)
+        .limit(limit * 2) // Get more to allow for re-sorting
         .lean();
     }
+
+    // Apply featured/boosted priority boost and re-sort
+    recommendedItems = recommendedItems
+      .map((item) => {
+        const itemIdStr = item._id.toString();
+        const featuredBoost = featuredMap.get(itemIdStr) || 0;
+        return {
+          ...item,
+          featuredBoost,
+          isFeatured: featuredBoost > 0,
+          isBoosted: featuredListings.find(
+            (f) => f.itemId.toString() === itemIdStr && f.isBoosted
+          ) !== undefined,
+          // Add a sort score that includes featured boost
+          sortScore: (item.rating || 0) + featuredBoost,
+        };
+      })
+      .sort((a, b) => b.sortScore - a.sortScore)
+      .slice(0, limit);
 
     // If not enough recommendations, fill with trending items
     if (recommendedItems.length < limit) {

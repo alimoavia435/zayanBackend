@@ -2,6 +2,8 @@ import Product from "../model/Product.js";
 import Category from "../model/Category.js";
 import Store from "../model/Store.js";
 import Review from "../model/Review.js";
+import UserSubscription from "../model/UserSubscription.js";
+import SubscriptionPlan from "../model/SubscriptionPlan.js";
 import { buildProfileResponse } from "./profileController.js";
 
 export const createProduct = async (req, res) => {
@@ -17,6 +19,61 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({
         message: "Please provide store, category, name, and price",
       });
+    }
+
+    // Check subscription limits for ecommerceSeller role
+    const userId = req.user._id;
+    const subscription = await UserSubscription.findOne({
+      userId,
+      role: "ecommerceSeller",
+      status: "active",
+    }).populate("planId");
+
+    if (subscription) {
+      // Check if subscription is still valid
+      const now = new Date();
+      if (subscription.endDate < now) {
+        subscription.status = "expired";
+        await subscription.save();
+      } else {
+        // Check listing limit (0 means unlimited)
+        if (subscription.planId.features.maxListings > 0) {
+          // Count current active products
+          const currentProductCount = await Product.countDocuments({
+            owner: userId,
+          });
+
+          // Check if adding one more would exceed limit
+          if (currentProductCount >= subscription.planId.features.maxListings) {
+            return res.status(403).json({
+              message: `You have reached your listing limit of ${subscription.planId.features.maxListings} products. Please upgrade your plan to add more listings.`,
+              limit: subscription.planId.features.maxListings,
+              current: currentProductCount,
+            });
+          }
+        }
+      }
+    } else {
+      // No subscription - check if Basic plan exists and allow 1 listing
+      const basicPlan = await SubscriptionPlan.findOne({
+        name: "Basic",
+        targetRole: { $in: ["ecommerceSeller", "both"] },
+        isActive: true,
+      });
+
+      if (basicPlan && basicPlan.features.maxListings > 0) {
+        const currentProductCount = await Product.countDocuments({
+          owner: userId,
+        });
+
+        if (currentProductCount >= basicPlan.features.maxListings) {
+          return res.status(403).json({
+            message: `You have reached the free listing limit of ${basicPlan.features.maxListings} products. Please subscribe to a plan to add more listings.`,
+            limit: basicPlan.features.maxListings,
+            current: currentProductCount,
+          });
+        }
+      }
     }
 
     // Verify that the category belongs to the store
@@ -50,6 +107,12 @@ export const createProduct = async (req, res) => {
     await Category.findByIdAndUpdate(category, {
       $inc: { products: 1 },
     });
+
+    // Update subscription usage if subscription exists
+    if (subscription && subscription.status === "active") {
+      subscription.usage.listingsUsed += 1;
+      await subscription.save();
+    }
 
     return res.status(201).json({
       message: "Product created successfully",

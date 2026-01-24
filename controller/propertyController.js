@@ -1,4 +1,6 @@
 import Property from "../model/Property.js";
+import UserSubscription from "../model/UserSubscription.js";
+import SubscriptionPlan from "../model/SubscriptionPlan.js";
 import { buildProfileResponse } from "./profileController.js";
 
 export const createProperty = async (req, res) => {
@@ -29,6 +31,61 @@ export const createProperty = async (req, res) => {
         .json({ message: "Please upload at least one property image" });
     }
 
+    // Check subscription limits for realEstateSeller role
+    const userId = req.user._id;
+    const subscription = await UserSubscription.findOne({
+      userId,
+      role: "realEstateSeller",
+      status: "active",
+    }).populate("planId");
+
+    if (subscription) {
+      // Check if subscription is still valid
+      const now = new Date();
+      if (subscription.endDate < now) {
+        subscription.status = "expired";
+        await subscription.save();
+      } else {
+        // Check listing limit (0 means unlimited)
+        if (subscription.planId.features.maxListings > 0) {
+          // Count current active properties
+          const currentPropertyCount = await Property.countDocuments({
+            owner: userId,
+          });
+
+          // Check if adding one more would exceed limit
+          if (currentPropertyCount >= subscription.planId.features.maxListings) {
+            return res.status(403).json({
+              message: `You have reached your listing limit of ${subscription.planId.features.maxListings} properties. Please upgrade your plan to add more listings.`,
+              limit: subscription.planId.features.maxListings,
+              current: currentPropertyCount,
+            });
+          }
+        }
+      }
+    } else {
+      // No subscription - check if Basic plan exists and allow 1 listing
+      const basicPlan = await SubscriptionPlan.findOne({
+        name: "Basic",
+        targetRole: { $in: ["realEstateSeller", "both"] },
+        isActive: true,
+      });
+
+      if (basicPlan && basicPlan.features.maxListings > 0) {
+        const currentPropertyCount = await Property.countDocuments({
+          owner: userId,
+        });
+
+        if (currentPropertyCount >= basicPlan.features.maxListings) {
+          return res.status(403).json({
+            message: `You have reached the free listing limit of ${basicPlan.features.maxListings} properties. Please subscribe to a plan to add more listings.`,
+            limit: basicPlan.features.maxListings,
+            current: currentPropertyCount,
+          });
+        }
+      }
+    }
+
     const property = await Property.create({
       owner: req.user._id,
       title,
@@ -45,6 +102,12 @@ export const createProperty = async (req, res) => {
       amenities,
       images,
     });
+
+    // Update subscription usage if subscription exists
+    if (subscription && subscription.status === "active") {
+      subscription.usage.listingsUsed += 1;
+      await subscription.save();
+    }
 
     return res
       .status(201)

@@ -262,6 +262,56 @@ export const getCurrentUser = async (req, res) => {
       }
     }
 
+    // Helper function to extract avatar from a profile (handles Mongoose subdocuments)
+    const extractAvatar = (profile) => {
+      if (!profile) return null
+      
+      // Handle Mongoose subdocument
+      if (profile._doc) {
+        return profile._doc.avatar
+      }
+      // Handle toObject() method
+      if (profile.toObject && typeof profile.toObject === 'function') {
+        const plainProfile = profile.toObject()
+        return plainProfile.avatar
+      }
+      // Already a plain object
+      return profile.avatar
+    }
+
+    // Helper function to get avatar from all profiles
+    const getAvatarFromProfiles = () => {
+      // First, check the role-specific profile if role is provided
+      if (role && user.profiles && user.profiles.get(role)) {
+        const roleProfile = user.profiles.get(role)
+        const avatar = extractAvatar(roleProfile)
+        if (avatar && avatar.trim() !== '') {
+          return avatar
+        }
+      }
+      
+      // Check all profiles for an avatar
+      if (user.profiles && typeof user.profiles.forEach === 'function') {
+        let foundAvatar = null
+        user.profiles.forEach((profile, profileRole) => {
+          if (!foundAvatar) {
+            const avatar = extractAvatar(profile)
+            if (avatar && avatar.trim() !== '') {
+              foundAvatar = avatar
+            }
+          }
+        })
+        if (foundAvatar) return foundAvatar
+      }
+      
+      // Fallback to legacy avatar field
+      if (user.avatar && user.avatar.trim() !== '') {
+        return user.avatar
+      }
+      
+      return ''
+    }
+
     // Format join date
     const joinDate = user.createdAt
       ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
@@ -290,7 +340,7 @@ export const getCurrentUser = async (req, res) => {
         lastName: lastName,
         email: user.email,
         phone: profileData.phone || '',
-        avatar: profileData.avatar || (user.avatar && user.avatar.startsWith('http') ? user.avatar : '') || '',
+        avatar: getAvatarFromProfiles(),
         roles: user.roles || [],
         bio: profileData.bio || '',
         specialization: profileData.specialization || '',
