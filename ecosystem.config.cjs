@@ -8,7 +8,7 @@ module.exports = {
       exec_mode: "fork",
       env: {
         NODE_ENV: "production", // production or development
-        PORT: 5000,
+        // PORT will be loaded from .env file
       },
       env_file: ".env",
       error_file: "./logs/pm2-error.log",
