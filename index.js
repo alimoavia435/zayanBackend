@@ -206,7 +206,7 @@ setTimeout(async () => {
 const PORT = process.env.PORT || 5000;
 
 // Only listen if not running on Vercel
-if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+if (!process.env.VERCEL) {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || "development"}`);
