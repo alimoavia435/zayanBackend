@@ -6,6 +6,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop zayan-backend",
+    "pm2:restart": "pm2 restart zayan-backend",
+    "pm2:logs": "pm2 logs zayan-backend",
+    "pm2:delete": "pm2 delete zayan-backend",
     "test": "echo \"Error: no test specified\" && exit 1",
     "create-admin": "node scripts/createAdmin.js"
   },
