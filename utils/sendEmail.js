@@ -9,13 +9,37 @@ const transporter = nodemailer.createTransport({
     user: process.env.MAIL_USER || "maharalimoavia396@gmail.com",
     pass: process.env.MAIL_PASS || "idku nwib vxcp jwpr",
   },
+  // Timeout settings to prevent hanging
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000, // 10 seconds
+  socketTimeout: 15000, // 15 seconds
+  // Connection pooling
+  pool: true,
+  maxConnections: 5,
+  maxMessages: 100,
 });
-console.log("email credentials",process.env.MAIL_USER, process.env.MAIL_PASS);
+console.log("email credentials", process.env.MAIL_USER, process.env.MAIL_PASS);
+
+// Verify transporter configuration on startup
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error("❌ Email transporter verification failed:", error.message);
+  } else {
+    console.log("✅ Email server is ready to send messages");
+  }
+});
+
 export const sendOtpEmail = async ({ to, otp, name }) => {
-    
+  console.log("📧 [sendOtpEmail] Starting email send process...");
+  console.log("📧 [sendOtpEmail] Recipient:", to);
+  console.log("📧 [sendOtpEmail] Name:", name);
+
   if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+    console.error("❌ [sendOtpEmail] Email credentials are not configured!");
     throw new Error("Email credentials are not configured");
   }
+
+  console.log("✅ [sendOtpEmail] Email credentials verified");
 
   const mailOptions = {
     from: `"zayan" <${process.env.MAIL_USER}>`,
@@ -34,8 +58,20 @@ export const sendOtpEmail = async ({ to, otp, name }) => {
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  console.log("📧 [sendOtpEmail] Mail options prepared, attempting to send...");
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ [sendOtpEmail] Email sent successfully!");
+    console.log("📧 [sendOtpEmail] Message ID:", info.messageId);
+    return info;
+  } catch (error) {
+    console.error("❌ [sendOtpEmail] Failed to send email:");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error code:", error.code);
+    throw error;
+  }
 };
 
 export default sendOtpEmail;
-
