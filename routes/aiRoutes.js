@@ -6,6 +6,7 @@ import {
   suggestPrice,
   chatAssistant,
   checkAiAvailability,
+  generateProfileBio,
 } from "../controller/aiController.js";
 
 const router = express.Router();
@@ -19,6 +20,9 @@ router.post("/product/description", protect, generateProductDesc);
 // Generate property description (protected - agents only)
 router.post("/property/description", protect, generatePropertyDesc);
 
+// Generate profile bio (protected - sellers/agents only)
+router.post("/profile/bio", protect, generateProfileBio);
+
 // Suggest pricing (protected - sellers/agents only)
 router.post("/pricing/suggest", protect, suggestPrice);
 
@@ -26,4 +30,3 @@ router.post("/pricing/suggest", protect, suggestPrice);
 router.post("/chat", chatAssistant);
 
 export default router;
-

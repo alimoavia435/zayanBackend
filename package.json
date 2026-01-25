@@ -15,6 +15,7 @@
   "type": "module",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.939.0",
+    "@huggingface/inference": "^4.13.10",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

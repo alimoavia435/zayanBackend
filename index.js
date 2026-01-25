@@ -44,7 +44,7 @@ import {
 import { protect } from "./middleware/authMiddleware.js";
 import { checkExpiringSubscriptions } from "./utils/subscriptionExpirationService.js";
 
-dotenv.config();
+dotenv.config({ path: [".env.local", ".env"] });
 
 // Connect to database (non-blocking for deployment)
 connectDB().catch((error) => {

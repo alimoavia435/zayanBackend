@@ -4,6 +4,7 @@ import {
   suggestPricing,
   getChatAssistantResponse,
   isAiAvailable,
+  generateProfileBio as generateBio,
 } from "../utils/aiService.js";
 
 // Generate product description
@@ -15,12 +16,14 @@ export const generateProductDesc = async (req, res) => {
 
     if (!isAiAvailable()) {
       return res.status(503).json({
-        message: "AI service is not available. Please configure OPENAI_API_KEY in environment variables.",
+        message:
+          "AI service is not available. Please configure GROQ_API_KEY in environment variables.",
         available: false,
       });
     }
 
-    const { name, category, price, currency, unit, stock } = req.body;
+    const { name, category, price, currency, unit, stock, customPrompt } =
+      req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Product name is required" });
@@ -35,7 +38,17 @@ export const generateProductDesc = async (req, res) => {
       stock: stock || "",
     };
 
-    const description = await generateProductDescription(productInfo);
+    const description = await generateProductDescription(
+      productInfo,
+      customPrompt,
+    );
+
+    if (!description) {
+      return res.status(503).json({
+        message: "AI service is temporarily unavailable.",
+        available: false,
+      });
+    }
 
     return res.status(200).json({
       message: "Product description generated successfully",
@@ -60,12 +73,26 @@ export const generatePropertyDesc = async (req, res) => {
 
     if (!isAiAvailable()) {
       return res.status(503).json({
-        message: "AI service is not available. Please configure OPENAI_API_KEY in environment variables.",
+        message:
+          "AI service is not available. Please configure GROQ_API_KEY in environment variables.",
         available: false,
       });
     }
 
-    const { title, location, city, state, propertyType, price, beds, baths, sqft, yearBuilt, amenities } = req.body;
+    const {
+      title,
+      location,
+      city,
+      state,
+      propertyType,
+      price,
+      beds,
+      baths,
+      sqft,
+      yearBuilt,
+      amenities,
+      customPrompt,
+    } = req.body;
 
     if (!title) {
       return res.status(400).json({ message: "Property title is required" });
@@ -85,7 +112,17 @@ export const generatePropertyDesc = async (req, res) => {
       amenities: amenities || [],
     };
 
-    const description = await generatePropertyDescription(propertyInfo);
+    const description = await generatePropertyDescription(
+      propertyInfo,
+      customPrompt,
+    );
+
+    if (!description) {
+      return res.status(503).json({
+        message: "AI service is temporarily unavailable.",
+        available: false,
+      });
+    }
 
     return res.status(200).json({
       message: "Property description generated successfully",
@@ -110,12 +147,13 @@ export const suggestPrice = async (req, res) => {
 
     if (!isAiAvailable()) {
       return res.status(503).json({
-        message: "AI service is not available. Please configure OPENAI_API_KEY in environment variables.",
+        message:
+          "AI service is not available. Please configure GROQ_API_KEY in environment variables.",
         available: false,
       });
     }
 
-    const { itemType = "product", ...itemInfo } = req.body;
+    const { itemType = "product", customPrompt = "", ...itemInfo } = req.body;
 
     if (itemType === "product" && !itemInfo.name) {
       return res.status(400).json({ message: "Product name is required" });
@@ -125,7 +163,14 @@ export const suggestPrice = async (req, res) => {
       return res.status(400).json({ message: "Property title is required" });
     }
 
-    const result = await suggestPricing(itemInfo, itemType);
+    const result = await suggestPricing(itemInfo, itemType, customPrompt);
+
+    if (!result.explanation) {
+      return res.status(503).json({
+        message: "AI service is temporarily unavailable.",
+        available: false,
+      });
+    }
 
     return res.status(200).json({
       message: "Pricing suggestion generated successfully",
@@ -153,7 +198,8 @@ export const chatAssistant = async (req, res) => {
 
     if (!isAiAvailable()) {
       return res.status(503).json({
-        message: "AI service is not available. Please configure OPENAI_API_KEY in environment variables.",
+        message:
+          "AI service is not available. Please configure GROQ_API_KEY in environment variables.",
         available: false,
       });
     }
@@ -165,14 +211,29 @@ export const chatAssistant = async (req, res) => {
     }
 
     if (itemType === "product" && !itemInfo.name) {
-      return res.status(400).json({ message: "Product information is required" });
+      return res
+        .status(400)
+        .json({ message: "Product information is required" });
     }
 
     if (itemType === "property" && !itemInfo.title) {
-      return res.status(400).json({ message: "Property information is required" });
+      return res
+        .status(400)
+        .json({ message: "Property information is required" });
     }
 
-    const answer = await getChatAssistantResponse(itemInfo, question.trim(), itemType);
+    const answer = await getChatAssistantResponse(
+      itemInfo,
+      question.trim(),
+      itemType,
+    );
+
+    if (!answer) {
+      return res.status(503).json({
+        message: "AI service is temporarily unavailable.",
+        available: false,
+      });
+    }
 
     return res.status(200).json({
       message: "Chat response generated successfully",
@@ -195,7 +256,7 @@ export const checkAiAvailability = async (req, res) => {
       available: isAiAvailable(),
       message: isAiAvailable()
         ? "AI service is available"
-        : "AI service is not available. Please configure OPENAI_API_KEY.",
+        : "AI service is not available. Please configure GROQ_API_KEY.",
     });
   } catch (error) {
     console.error("checkAiAvailability error", error);
@@ -205,4 +266,63 @@ export const checkAiAvailability = async (req, res) => {
     });
   }
 };
+// Generate profile bio
+export const generateProfileBio = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
+    if (!isAiAvailable()) {
+      return res.status(503).json({
+        message:
+          "AI service is not available. Please configure GROQ_API_KEY in environment variables.",
+        available: false,
+      });
+    }
+
+    const {
+      firstName,
+      lastName,
+      specialization,
+      agency,
+      city,
+      state,
+      certifications,
+      languages,
+      customPrompt,
+    } = req.body;
+
+    const profileInfo = {
+      firstName: firstName || req.user.firstName || "",
+      lastName: lastName || req.user.lastName || "",
+      specialization: specialization || "",
+      agency: agency || "",
+      city: city || "",
+      state: state || "",
+      certifications: certifications || "",
+      languages: languages || [],
+    };
+
+    const bio = await generateBio(profileInfo, customPrompt);
+
+    if (!bio) {
+      return res.status(503).json({
+        message: "AI service is temporarily unavailable.",
+        available: false,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Profile bio generated successfully",
+      description: bio,
+      available: true,
+    });
+  } catch (error) {
+    console.error("generateProfileBio error", error);
+    return res.status(500).json({
+      message: error.message || "Failed to generate profile bio",
+      available: isAiAvailable(),
+    });
+  }
+};
