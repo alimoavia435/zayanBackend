@@ -89,19 +89,19 @@ export const registerUser = async (req, res) => {
 
     console.log("before sending otp");
 
-    try {
-      await sendOtpEmail({ to: email, otp: plainOtp, name });
-      console.log("otp sent successfully");
-    } catch (mailError) {
-      console.error("error sending otp:", mailError.message || mailError);
-      await User.findByIdAndDelete(user._id);
-      throw mailError;
-    }
+    // try {
+    //   await sendOtpEmail({ to: email, otp: plainOtp, name });
+    //   console.log("otp sent successfully");
+    // } catch (mailError) {
+    //   console.error("error sending otp:", mailError.message || mailError);
+    //   await User.findByIdAndDelete(user._id);
+    //   throw mailError;
+    // }
 
-    res.status(201).json({
-      message: "OTP sent to your email address. Please verify to continue.",
-      email,
-    });
+    // res.status(201).json({
+    //   message: "OTP sent to your email address. Please verify to continue.",
+    //   email,
+    // });
   } catch (err) {
     console.log("error in registerUser", err);
     res.status(500).json({ message: err.message });
@@ -507,11 +507,9 @@ export const resetPasswordWithOtp = async (req, res) => {
     }
 
     if (!user.passwordResetOtpVerifiedAt || !user.passwordResetOtp) {
-      return res
-        .status(400)
-        .json({
-          message: "OTP verification required before resetting password.",
-        });
+      return res.status(400).json({
+        message: "OTP verification required before resetting password.",
+      });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
