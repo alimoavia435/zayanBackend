@@ -201,11 +201,11 @@ export const loginUser = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(400).json({ message: "User does not exist" });
 
-    if (!user.isVerified) {
-      return res
-        .status(403)
-        .json({ message: "Please verify your email before logging in" });
-    }
+    // if (!user.isVerified) {
+    //   return res
+    //     .status(403)
+    //     .json({ message: "Please verify your email before logging in" });
+    // }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
