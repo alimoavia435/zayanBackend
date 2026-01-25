@@ -98,10 +98,10 @@ export const registerUser = async (req, res) => {
     //   throw mailError;
     // }
 
-    // res.status(201).json({
-    //   message: "OTP sent to your email address. Please verify to continue.",
-    //   email,
-    // });
+    res.status(201).json({
+      message: "OTP sent to your email address. Please verify to continue.",
+      email,
+    });
   } catch (err) {
     console.log("error in registerUser", err);
     res.status(500).json({ message: err.message });
