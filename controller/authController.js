@@ -23,6 +23,8 @@ export const registerUser = async (req, res) => {
     const plainOtp = generateOtp()
     const hashedOtp = await bcrypt.hash(plainOtp, 10)
 
+
+    console.log("hashedOtp", hashedOtp)
     const user = await User.create({
       name,
       email: normalizedEmail,
@@ -35,6 +37,8 @@ export const registerUser = async (req, res) => {
       otpExpiresAt: new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000)
     })
 
+
+    console.log("user created", user)
     // Store legal policy acceptance (privacy & terms) if provided
     try {
       if (acceptedPolicies?.privacy === true || acceptedPolicies?.terms === true) {
@@ -69,11 +73,16 @@ export const registerUser = async (req, res) => {
       console.error("Failed to record legal acceptances:", legalError)
     }
 
+    console.log("before sending otp")
+
     try {
       await sendOtpEmail({ to: email, otp: plainOtp, name })
+      console.log("otp sent successfully")
     } catch (mailError) {
+      console.log("error sending otp", mailError)
       await User.findByIdAndDelete(user._id)
       throw mailError
+      console.log("error sending otp", mailError)
     }
 
     res.status(201).json({
@@ -81,6 +90,7 @@ export const registerUser = async (req, res) => {
       email
     })
   } catch (err) {
+    console.log("error in registerUser", err)
     res.status(500).json({ message: err.message })
   }
 }
