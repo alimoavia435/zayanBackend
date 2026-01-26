@@ -22,10 +22,6 @@ transporter.verify(function (error, success) {
 });
 
 export const sendOtpEmail = async ({ to, otp, name }) => {
-  console.log("📧 [sendOtpEmail] Starting email send process...");
-  console.log("📧 [sendOtpEmail] Recipient:", to);
-  console.log("📧 [sendOtpEmail] Name:", name);
-
   if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
     console.error("❌ [sendOtpEmail] Email credentials are not configured!");
     throw new Error("Email credentials are not configured");
@@ -50,12 +46,8 @@ export const sendOtpEmail = async ({ to, otp, name }) => {
     `,
   };
 
-  console.log("📧 [sendOtpEmail] Mail options prepared, attempting to send...");
-
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log("✅ [sendOtpEmail] Email sent successfully!");
-    console.log("📧 [sendOtpEmail] Message ID:", info.messageId);
     return info;
   } catch (error) {
     console.error("❌ [sendOtpEmail] Failed to send email:");

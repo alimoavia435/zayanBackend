@@ -87,11 +87,10 @@ export const registerUser = async (req, res) => {
       console.error("Failed to record legal acceptances:", legalError);
     }
 
-    console.log("before sending otp");
+    // console.log("before sending otp");
 
     try {
       await sendOtpEmail({ to: email, otp: plainOtp, name });
-      console.log("✅ [registerUser] OTP sent successfully to:", email);
     } catch (mailError) {
       console.error(
         "❌ [registerUser] Error sending OTP email:",
