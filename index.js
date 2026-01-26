@@ -110,6 +110,7 @@ app.use(
 
 app.use(
   express.json({
+    limit: "50mb",
     verify: (req, res, buf) => {
       if (req.originalUrl.startsWith("/api/payments/webhook")) {
         req.rawBody = buf;
@@ -117,6 +118,7 @@ app.use(
     },
   }),
 );
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 
 // Health check endpoint (important for Render deployment)

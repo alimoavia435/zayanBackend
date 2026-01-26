@@ -3,7 +3,10 @@ import multer from "multer";
 import { uploadToR2 } from "../controller/uploadController.js";
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+});
 
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {
