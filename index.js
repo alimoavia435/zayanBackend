@@ -84,6 +84,8 @@ const allowedOrigins = [
 
 // Initialize Socket.io for real-time features
 const io = new Server(server, {
+  path: "/socket.io/",
+  addTrailingSlash: false,
   cors: {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
@@ -105,6 +107,8 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000,
   connectTimeout: 45000,
+  maxHttpBufferSize: 1e8,
+  cookie: false,
 });
 
 app.set("io", io);
