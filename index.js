@@ -76,25 +76,35 @@ const app = express();
 const server = http.createServer(app);
 const allowedOrigins = [
   "https://zayan-ruddy.vercel.app",
-  "https://zayan-ruddy.vercel.app/",
   "http://localhost:3000",
-  "http://localhost:3000/",
   "https://zayan-admin.vercel.app",
-  "https://zayan-admin.vercel.app/",
   "https://zyan.shwanix.com",
-  "https://zyan.shwanix.com/",
   "http://zyan.shwanix.com",
 ];
 
 // Initialize Socket.io for real-time features
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const isAllowed =
+        allowedOrigins.indexOf(origin) !== -1 ||
+        origin.endsWith(".vercel.app") ||
+        origin.includes("localhost");
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   },
-  transports: ["websocket", "polling"],
+  transports: ["polling", "websocket"],
   allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  connectTimeout: 45000,
 });
 
 app.set("io", io);
@@ -125,15 +135,22 @@ app.use(
       // Allow requests with no origin (like mobile apps or curl)
       if (!origin) return callback(null, true);
 
-      if (allowedOrigins.indexOf(origin) !== -1) {
+      // Check if origin is in allowedOrigins or matches dynamic patterns
+      const isAllowed =
+        allowedOrigins.indexOf(origin) !== -1 ||
+        origin.endsWith(".vercel.app") ||
+        origin.includes("localhost");
+
+      if (isAllowed) {
         callback(null, true);
       } else {
         console.log("🚫 CORS Blocked for origin:", origin);
         callback(null, false);
       }
     },
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
+    optionsSuccessStatus: 200,
   }),
 );
 
