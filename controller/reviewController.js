@@ -499,6 +499,46 @@ export const addSellerResponse = async (req, res) => {
     };
     await review.save();
 
+    // NOTIFY THE BUYER: Send notification to the user who left the review
+    try {
+      const io = req.app.get("io");
+      const seller = await User.findById(req.user._id).select(
+        "name firstName lastName",
+      );
+      const sellerName =
+        seller?.name ||
+        (seller?.firstName
+          ? `${seller.firstName} ${seller.lastName || ""}`.trim()
+          : "The Seller");
+
+      const buyerId = review.user.toString();
+
+      // Determine routing channel based on review type (ecommerce vs real-estate)
+      const channel = review.product ? "ecommerce" : "real-estate";
+
+      await createNotification({
+        userId: buyerId,
+        type: "review_response",
+        title: "Seller Responded to Your Review",
+        message: `${sellerName} has replied to your review: "${response.trim()}"`,
+        // Route to the store or seller profile
+        actionUrl: review.product
+          ? `/ecommerce/buyer/stores/${review.seller}`
+          : `/real-estate/buyer/seller-profile/${review.seller}`,
+        metadata: {
+          reviewId: review._id.toString(),
+          sellerId: req.user._id.toString(),
+          sellerName,
+        },
+        relatedId: review._id,
+        relatedType: "review",
+        sendEmail: true,
+        io,
+      });
+    } catch (notifError) {
+      console.error("Failed to notify buyer of review response:", notifError);
+    }
+
     return res.json({
       message: "Response added successfully",
       review: {
