@@ -89,14 +89,17 @@ export const registerUser = async (req, res) => {
 
     console.log("before sending otp");
 
-    // try {
-    //   await sendOtpEmail({ to: email, otp: plainOtp, name });
-    //   console.log("otp sent successfully");
-    // } catch (mailError) {
-    //   console.error("error sending otp:", mailError.message || mailError);
-    //   await User.findByIdAndDelete(user._id);
-    //   throw mailError;
-    // }
+    try {
+      await sendOtpEmail({ to: email, otp: plainOtp, name });
+      console.log("✅ [registerUser] OTP sent successfully to:", email);
+    } catch (mailError) {
+      console.error(
+        "❌ [registerUser] Error sending OTP email:",
+        mailError.message || mailError,
+      );
+      // We don't delete the user here, allow them to resend OTP from the login/verify page
+      // This provides a better user experience than silent failure or account deletion
+    }
 
     res.status(201).json({
       message: "OTP sent to your email address. Please verify to continue.",

@@ -9,14 +9,6 @@ const transporter = nodemailer.createTransport({
     user: process.env.MAIL_USER || "maharalimoavia396@gmail.com",
     pass: process.env.MAIL_PASS || "idku nwib vxcp jwpr",
   },
-  // Timeout settings to prevent hanging
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000, // 10 seconds
-  socketTimeout: 15000, // 15 seconds
-  // Connection pooling
-  pool: true,
-  maxConnections: 5,
-  maxMessages: 100,
 });
 console.log("email credentials", process.env.MAIL_USER, process.env.MAIL_PASS);
 
@@ -42,7 +34,7 @@ export const sendOtpEmail = async ({ to, otp, name }) => {
   console.log("✅ [sendOtpEmail] Email credentials verified");
 
   const mailOptions = {
-    from: `"zayan" <${process.env.MAIL_USER}>`,
+    from: `"Zayan" <${process.env.MAIL_USER}>`,
     to,
     subject: "Zayan Email Verification Code",
     html: `
