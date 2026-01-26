@@ -37,6 +37,7 @@ import adminPolicyRoutes from "./routes/adminPolicyRoutes.js";
 import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import adminSubscriptionRoutes from "./routes/adminSubscriptionRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import locationRoutes from "./routes/locationRoutes.js";
 import {
   getSupportConversation,
   sendSupportMessage,
@@ -154,6 +155,7 @@ app.use("/api/saved-searches", savedSearchRoutes);
 app.use("/api/policies", policyRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/location", locationRoutes);
 
 // Admin routes - separate namespace
 app.use("/api/admin/auth", adminAuthRoutes);
