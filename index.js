@@ -66,6 +66,7 @@ const server = http.createServer(app);
 const allowedOrigins = [
   "https://zayan-ruddy.vercel.app",
   "http://localhost:3000",
+  "https://zayan-admin.vercel.app",
 ];
 
 // Initialize Socket.io for real-time features
