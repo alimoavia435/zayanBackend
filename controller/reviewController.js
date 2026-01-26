@@ -8,10 +8,10 @@ import { createNotification } from "./notificationController.js";
 // Helper function to update seller/agent rating based on reviews
 export const updateSellerRating = async (sellerId) => {
   try {
-    const reviews = await Review.find({ 
-      type: "seller", 
+    const reviews = await Review.find({
+      type: "seller",
       seller: sellerId,
-      verified: true // Only count verified reviews
+      verified: true, // Only count verified reviews
     });
 
     if (reviews.length === 0) {
@@ -55,23 +55,26 @@ export const updateSellerRating = async (sellerId) => {
 
     // Calculate category averages
     if (categoryCounts.communication > 0) {
-      categoryRatings.communication = Math.round(
-        (categoryRatings.communication / categoryCounts.communication) * 10
-      ) / 10;
+      categoryRatings.communication =
+        Math.round(
+          (categoryRatings.communication / categoryCounts.communication) * 10,
+        ) / 10;
     }
     if (categoryCounts.accuracy > 0) {
-      categoryRatings.accuracy = Math.round(
-        (categoryRatings.accuracy / categoryCounts.accuracy) * 10
-      ) / 10;
+      categoryRatings.accuracy =
+        Math.round((categoryRatings.accuracy / categoryCounts.accuracy) * 10) /
+        10;
     }
     if (categoryCounts.professionalism > 0) {
-      categoryRatings.professionalism = Math.round(
-        (categoryRatings.professionalism / categoryCounts.professionalism) * 10
-      ) / 10;
+      categoryRatings.professionalism =
+        Math.round(
+          (categoryRatings.professionalism / categoryCounts.professionalism) *
+            10,
+        ) / 10;
     }
 
     // Update user rating (overall average)
-    await User.findByIdAndUpdate(sellerId, { 
+    await User.findByIdAndUpdate(sellerId, {
       rating: roundedRating,
       // Store category ratings in user profile if needed (can extend User model)
     });
@@ -95,10 +98,10 @@ export const createSellerReview = async (req, res) => {
     }
 
     const { sellerId } = req.params;
-    const { 
-      rating, 
-      title, 
-      comment, 
+    const {
+      rating,
+      title,
+      comment,
       categories,
       propertyId, // Optional: for real estate reviews
       productId, // Optional: for ecommerce reviews
@@ -106,19 +109,36 @@ export const createSellerReview = async (req, res) => {
 
     // Validate rating
     if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+      return res
+        .status(400)
+        .json({ message: "Rating must be between 1 and 5" });
     }
 
     // Validate category ratings if provided
     if (categories) {
-      if (categories.communication && (categories.communication < 1 || categories.communication > 5)) {
-        return res.status(400).json({ message: "Communication rating must be between 1 and 5" });
+      if (
+        categories.communication &&
+        (categories.communication < 1 || categories.communication > 5)
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Communication rating must be between 1 and 5" });
       }
-      if (categories.accuracy && (categories.accuracy < 1 || categories.accuracy > 5)) {
-        return res.status(400).json({ message: "Accuracy rating must be between 1 and 5" });
+      if (
+        categories.accuracy &&
+        (categories.accuracy < 1 || categories.accuracy > 5)
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Accuracy rating must be between 1 and 5" });
       }
-      if (categories.professionalism && (categories.professionalism < 1 || categories.professionalism > 5)) {
-        return res.status(400).json({ message: "Professionalism rating must be between 1 and 5" });
+      if (
+        categories.professionalism &&
+        (categories.professionalism < 1 || categories.professionalism > 5)
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Professionalism rating must be between 1 and 5" });
       }
     }
 
@@ -130,10 +150,12 @@ export const createSellerReview = async (req, res) => {
 
     // Verify seller has seller/agent role
     const hasSellerRole = seller.roles?.some(
-      (role) => role === "ecommerceSeller" || role === "realEstateSeller"
+      (role) => role === "ecommerceSeller" || role === "realEstateSeller",
     );
     if (!hasSellerRole) {
-      return res.status(400).json({ message: "This user is not a seller or agent" });
+      return res
+        .status(400)
+        .json({ message: "This user is not a seller or agent" });
     }
 
     // Verify that buyer has interacted with seller (through conversation)
@@ -166,8 +188,9 @@ export const createSellerReview = async (req, res) => {
     }
 
     if (!conversation) {
-      return res.status(403).json({ 
-        message: "You can only review sellers you have interacted with. Please start a conversation first." 
+      return res.status(403).json({
+        message:
+          "You can only review sellers you have interacted with. Please start a conversation first.",
       });
     }
 
@@ -209,7 +232,7 @@ export const createSellerReview = async (req, res) => {
     // Get buyer profile using buildProfileResponse
     const buyerProfile = await buildProfileResponse(
       buyerId.toString(),
-      propertyId ? "realestate_buyer" : "ecommerce_buyer"
+      propertyId ? "realestate_buyer" : "ecommerce_buyer",
     );
 
     // Create notification for seller about new review
@@ -222,8 +245,8 @@ export const createSellerReview = async (req, res) => {
         title: "New Review Received",
         message: `${userName} left you a ${rating}-star review: "${reviewTitle}"`,
         actionUrl: propertyId
-          ? `/real-estate/buyer/seller-profile/${sellerId}`
-          : `/ecommerce/buyer/stores/${sellerId}`,
+          ? `/real-estate/seller/dashboard`
+          : `/ecommerce/seller/dashboard`,
         metadata: {
           reviewId: review._id.toString(),
           rating,
@@ -253,7 +276,9 @@ export const createSellerReview = async (req, res) => {
     }
 
     return res.status(201).json({
-      message: existingReview ? "Review updated successfully" : "Review created successfully",
+      message: existingReview
+        ? "Review updated successfully"
+        : "Review created successfully",
       review: {
         _id: review._id.toString(),
         type: review.type,
@@ -277,7 +302,9 @@ export const createSellerReview = async (req, res) => {
   } catch (error) {
     console.error("createSellerReview error", error);
     if (error.code === 11000) {
-      return res.status(400).json({ message: "You have already reviewed this seller" });
+      return res
+        .status(400)
+        .json({ message: "You have already reviewed this seller" });
     }
     return res.status(500).json({ message: error.message });
   }
@@ -299,7 +326,7 @@ export const getSellerReviews = async (req, res) => {
     }
 
     // Get all verified reviews for this seller
-    const reviews = await Review.find({ 
+    const reviews = await Review.find({
       type: "seller",
       seller: sellerId,
       verified: true,
@@ -341,18 +368,31 @@ export const getSellerReviews = async (req, res) => {
       }
     });
 
-    const averageRating = totalReviews > 0 ? Math.round((totalRating / totalReviews) * 10) / 10 : 0;
+    const averageRating =
+      totalReviews > 0 ? Math.round((totalRating / totalReviews) * 10) / 10 : 0;
 
     const categoryRatings = {
-      communication: categoryCounts.communication > 0 
-        ? Math.round((categoryTotals.communication / categoryCounts.communication) * 10) / 10 
-        : 0,
-      accuracy: categoryCounts.accuracy > 0 
-        ? Math.round((categoryTotals.accuracy / categoryCounts.accuracy) * 10) / 10 
-        : 0,
-      professionalism: categoryCounts.professionalism > 0 
-        ? Math.round((categoryTotals.professionalism / categoryCounts.professionalism) * 10) / 10 
-        : 0,
+      communication:
+        categoryCounts.communication > 0
+          ? Math.round(
+              (categoryTotals.communication / categoryCounts.communication) *
+                10,
+            ) / 10
+          : 0,
+      accuracy:
+        categoryCounts.accuracy > 0
+          ? Math.round(
+              (categoryTotals.accuracy / categoryCounts.accuracy) * 10,
+            ) / 10
+          : 0,
+      professionalism:
+        categoryCounts.professionalism > 0
+          ? Math.round(
+              (categoryTotals.professionalism /
+                categoryCounts.professionalism) *
+                10,
+            ) / 10
+          : 0,
     };
 
     // Format reviews with buyer profile information
@@ -368,7 +408,7 @@ export const getSellerReviews = async (req, res) => {
         // Get buyer profile using buildProfileResponse
         const buyerProfile = await buildProfileResponse(
           review.user._id.toString(),
-          buyerRole
+          buyerRole,
         );
 
         // Format user info from profile
@@ -403,7 +443,7 @@ export const getSellerReviews = async (req, res) => {
           createdAt: review.createdAt,
           updatedAt: review.updatedAt,
         };
-      })
+      }),
     );
 
     return res.json({
@@ -441,12 +481,15 @@ export const addSellerResponse = async (req, res) => {
     }
 
     // Check if the current user is the seller being reviewed
-    const sellerId = typeof review.seller === "object" 
-      ? review.seller._id.toString() 
-      : review.seller.toString();
-    
+    const sellerId =
+      typeof review.seller === "object"
+        ? review.seller._id.toString()
+        : review.seller.toString();
+
     if (req.user._id.toString() !== sellerId) {
-      return res.status(403).json({ message: "You can only respond to reviews about yourself" });
+      return res
+        .status(403)
+        .json({ message: "You can only respond to reviews about yourself" });
     }
 
     // Update review with seller response
@@ -468,4 +511,3 @@ export const addSellerResponse = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-

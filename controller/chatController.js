@@ -43,7 +43,8 @@ const normalizeUser = (userDoc, profile) => {
   const firstName = merged.firstName || "";
   const lastName = merged.lastName || "";
   const fallbackName = merged.name || "";
-  const name = `${firstName} ${lastName}`.trim() || fallbackName || "Unknown User";
+  const name =
+    `${firstName} ${lastName}`.trim() || fallbackName || "Unknown User";
   const avatarSource = merged.avatar || (name ? name.charAt(0) : "U");
 
   return {
@@ -55,14 +56,30 @@ const normalizeUser = (userDoc, profile) => {
   };
 };
 
-const normalizeConversation = (conversation, role) => {
-  // Determine profile roles based on context
-  let buyerProfileRole = "realestate_buyer";
-  let sellerProfileRole = "realestate_seller";
-  
-  if (role === "ecommerce_buyer" || role === "ecommerce_seller") {
-    buyerProfileRole = "ecommerce_buyer";
-    sellerProfileRole = "ecommerce_seller";
+const normalizeConversation = (conversation, requestUserId) => {
+  // ARCHITECTURAL DECISION: Dynamically determine role based on identity and context
+  const isBuyer =
+    conversation.buyerId?._id?.toString() === requestUserId?.toString() ||
+    conversation.buyerId?.toString() === requestUserId?.toString();
+
+  const isSeller =
+    conversation.sellerId?._id?.toString() === requestUserId?.toString() ||
+    conversation.sellerId?.toString() === requestUserId?.toString();
+
+  // Determine profile roles based on contextType
+  // defaults based on contextType
+  let buyerProfileRole =
+    conversation.contextType === "property"
+      ? "realestate_buyer"
+      : "ecommerce_buyer";
+  let sellerProfileRole =
+    conversation.contextType === "property"
+      ? "realestate_seller"
+      : "ecommerce_seller";
+
+  if (conversation.isSupportChat) {
+    buyerProfileRole = "ecommerce_buyer"; // or a generic role
+    sellerProfileRole = "admin";
   }
 
   // Normalize property (real estate)
@@ -100,14 +117,21 @@ const normalizeConversation = (conversation, role) => {
     id: conversation._id,
     buyer: normalizeUser(
       conversation.buyerId,
-      getProfile(conversation.buyerId, buyerProfileRole, sellerProfileRole)
+      getProfile(conversation.buyerId, buyerProfileRole, sellerProfileRole),
     ),
     seller: normalizeUser(
       conversation.sellerId,
-      getProfile(conversation.sellerId, sellerProfileRole, buyerProfileRole)
+      getProfile(conversation.sellerId, sellerProfileRole, buyerProfileRole),
     ),
     property,
     product,
+    contextType:
+      conversation.contextType ||
+      (conversation.productId ? "product" : "property"),
+    contextId:
+      conversation.contextId ||
+      conversation.productId ||
+      conversation.propertyId,
     lastMessage: conversation.lastMessage,
     lastMessageSenderId:
       conversation.lastMessageSender?._id?.toString?.() ||
@@ -116,53 +140,81 @@ const normalizeConversation = (conversation, role) => {
     updatedAt: conversation.updatedAt,
     createdAt: conversation.createdAt,
     isSupportChat: conversation.isSupportChat || false,
+    // Add context-aware metadata for UI routing
+    myRole: isBuyer ? "buyer" : isSeller ? "seller" : "unknown",
   };
 };
 
 export const startConversation = async (req, res) => {
   try {
-    const { buyerId, sellerId, propertyId, productId } = req.body;
+    const { buyerId, sellerId, propertyId, productId, isSupportChat } =
+      req.body;
 
-    // Validate that either propertyId or productId is provided
-    if (!buyerId || !sellerId || (!propertyId && !productId)) {
-      return res.status(400).json({ 
-        message: "buyerId, sellerId, and either propertyId or productId are required" 
+    // VALIDATION: Support chat has different rules
+    if (isSupportChat) {
+      if (!buyerId || !sellerId) {
+        return res
+          .status(400)
+          .json({ message: "buyerId and sellerId are required for support" });
+      }
+    } else if (!buyerId || !sellerId || (!propertyId && !productId)) {
+      return res.status(400).json({
+        message:
+          "buyerId, sellerId, and either propertyId or productId are required",
       });
     }
 
     const userId = req.user?._id?.toString();
     if (userId && userId !== buyerId && userId !== sellerId) {
-      return res.status(403).json({ message: "You are not authorized for this conversation" });
+      return res
+        .status(403)
+        .json({ message: "You are not authorized for this conversation" });
     }
 
-    // Build query based on whether it's property or product
-    const query = propertyId
-      ? { buyerId, sellerId, propertyId }
-      : { buyerId, sellerId, productId };
+    // ARCHITECTURAL DECISION: Use contextType and contextId for identification
+    const contextType = propertyId
+      ? "property"
+      : productId
+        ? "product"
+        : isSupportChat
+          ? "support"
+          : "product";
+    const contextId = propertyId || productId || sellerId; // for support, contextId could be sellerId (admin)
 
-    // Try to reuse an existing conversation
+    // Build query based on unified context architecture
+    const query = {
+      buyerId,
+      sellerId,
+      contextType,
+      contextId,
+    };
+
+    // Try to reuse an existing conversation based on exact context match
     let conversation = await Conversation.findOne(query).populate(
-      conversationPopulateConfig
+      conversationPopulateConfig,
     );
 
-    // Fallback: if no exact match, reuse any conversation between the same users
-    // for the same channel type (property vs product) to avoid duplicate threads.
+    // Backward compatibility: If not found by context, try legacy fields
     if (!conversation) {
-      const fallbackQuery = propertyId
-        ? { buyerId, sellerId, propertyId: { $exists: true } }
-        : { buyerId, sellerId, productId: { $exists: true } };
+      const legacyQuery = propertyId
+        ? { buyerId, sellerId, propertyId }
+        : { buyerId, sellerId, productId };
 
-      conversation = await Conversation.findOne(fallbackQuery).populate(
-        conversationPopulateConfig
+      conversation = await Conversation.findOne(legacyQuery).populate(
+        conversationPopulateConfig,
       );
     }
 
     if (!conversation) {
+      // Create new conversation with unified context architecture
       conversation = await Conversation.create({
         buyerId,
         sellerId,
+        contextType,
+        contextId,
         propertyId: propertyId || undefined,
         productId: productId || undefined,
+        isSupportChat: isSupportChat || false,
         lastMessage: "",
         lastMessageSender: null,
       });
@@ -170,18 +222,12 @@ export const startConversation = async (req, res) => {
       conversation = await conversation.populate(conversationPopulateConfig);
     }
 
-    // Determine role for normalization (prefer the persisted conversation's type)
-    const role =
-      conversation?.productId || productId
-        ? "ecommerce_buyer"
-        : "realestate_buyer";
-
     const messages = await Message.find({ conversationId: conversation._id })
       .sort({ createdAt: 1 })
       .lean();
 
     return res.json({
-      conversation: normalizeConversation(conversation, role),
+      conversation: normalizeConversation(conversation, userId),
       messages: messages.map((msg) => ({
         id: msg._id,
         conversationId: msg.conversationId,
@@ -208,22 +254,23 @@ export const getUserConversations = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Get role from query parameter
-    const role = req.query.role;
+    // Get role from query parameter (Role is now a FILTER, not a constraint on ownership)
+    const roleFilter = req.query.role;
 
-    // Build filter based on role
-    let filter = {};
-    if (role === "realestate_buyer" || role === "ecommerce_buyer") {
-      // If user is acting as buyer, only show conversations where they are the buyer
-      filter = { buyerId: userId };
-    } else if (role === "realestate_seller" || role === "ecommerce_seller") {
-      // If user is acting as seller, only show conversations where they are the seller
-      filter = { sellerId: userId };
-    } else {
-      // If no role specified, show all conversations (backward compatibility)
-      filter = {
-        $or: [{ buyerId: userId }, { sellerId: userId }],
-      };
+    // UNIFIED INBOX: Base filter is just the user's identity
+    let filter = {
+      $or: [{ buyerId: userId }, { sellerId: userId }],
+    };
+
+    // APPLY CONTEXTUAL FILTERING based on the requested UI view (role)
+    if (roleFilter === "realestate_buyer") {
+      filter = { buyerId: userId, contextType: "property" };
+    } else if (roleFilter === "ecommerce_buyer") {
+      filter = { buyerId: userId, contextType: "product" };
+    } else if (roleFilter === "realestate_seller") {
+      filter = { sellerId: userId, contextType: "property" };
+    } else if (roleFilter === "ecommerce_seller") {
+      filter = { sellerId: userId, contextType: "product" };
     }
 
     const conversations = await Conversation.find(filter)
@@ -233,13 +280,7 @@ export const getUserConversations = async (req, res) => {
 
     return res.json({
       conversations: conversations.map((conversation) =>
-        normalizeConversation({
-          ...conversation,
-          buyerId: conversation.buyerId,
-          sellerId: conversation.sellerId,
-          propertyId: conversation.propertyId,
-          productId: conversation.productId,
-        }, role)
+        normalizeConversation(conversation, userId),
       ),
     });
   } catch (error) {
@@ -261,8 +302,13 @@ export const getConversationMessages = async (req, res) => {
     }
 
     const userId = req.user?._id?.toString();
-    if (userId !== conversation.buyerId.toString() && userId !== conversation.sellerId.toString()) {
-      return res.status(403).json({ message: "You are not allowed to access this conversation" });
+    if (
+      userId !== conversation.buyerId.toString() &&
+      userId !== conversation.sellerId.toString()
+    ) {
+      return res
+        .status(403)
+        .json({ message: "You are not allowed to access this conversation" });
     }
 
     // Update lastSeen when user views conversation
@@ -270,7 +316,9 @@ export const getConversationMessages = async (req, res) => {
       await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
     }
 
-    const messages = await Message.find({ conversationId }).sort({ createdAt: 1 }).lean();
+    const messages = await Message.find({ conversationId })
+      .sort({ createdAt: 1 })
+      .lean();
 
     return res.json({
       messages: messages.map((msg) => ({
@@ -294,7 +342,14 @@ export const getConversationMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { conversationId, message, mediaUrl, fileName, mimeType, type = "text" } = req.body;
+    const {
+      conversationId,
+      message,
+      mediaUrl,
+      fileName,
+      mimeType,
+      type = "text",
+    } = req.body;
     if (!conversationId) {
       return res.status(400).json({ message: "conversationId is required" });
     }
@@ -302,7 +357,9 @@ export const sendMessage = async (req, res) => {
     const trimmedMessage = message?.trim();
 
     if (!trimmedMessage && !mediaUrl) {
-      return res.status(400).json({ message: "Message text or media is required" });
+      return res
+        .status(400)
+        .json({ message: "Message text or media is required" });
     }
 
     const conversation = await Conversation.findById(conversationId);
@@ -330,10 +387,14 @@ export const sendMessage = async (req, res) => {
       senderId.toString() !== conversation.buyerId.toString() &&
       senderId.toString() !== conversation.sellerId.toString()
     ) {
-      return res.status(403).json({ message: "You are not part of this conversation" });
+      return res
+        .status(403)
+        .json({ message: "You are not part of this conversation" });
     }
 
-    const lastConversationMessage = await Message.findOne({ conversationId }).sort({ createdAt: -1 });
+    const lastConversationMessage = await Message.findOne({
+      conversationId,
+    }).sort({ createdAt: -1 });
 
     const payload = {
       conversationId,
@@ -351,20 +412,28 @@ export const sendMessage = async (req, res) => {
 
     const newMessage = await Message.create(payload);
 
-    conversation.lastMessage = trimmedMessage || (mediaUrl ? fileName || "Attachment" : "");
+    conversation.lastMessage =
+      trimmedMessage || (mediaUrl ? fileName || "Attachment" : "");
     conversation.lastMessageSender = senderId;
     await conversation.save();
 
-    if (senderId.toString() === conversation.sellerId.toString() && lastConversationMessage) {
+    if (
+      senderId.toString() === conversation.sellerId.toString() &&
+      lastConversationMessage
+    ) {
       const lastSender = lastConversationMessage.senderId?.toString();
       if (lastSender && lastSender !== senderId.toString()) {
         const responseMinutes =
-          (newMessage.createdAt.getTime() - lastConversationMessage.createdAt.getTime()) / 60000;
+          (newMessage.createdAt.getTime() -
+            lastConversationMessage.createdAt.getTime()) /
+          60000;
         if (!Number.isNaN(responseMinutes) && responseMinutes >= 0) {
           const sellerUser = await User.findById(conversation.sellerId);
           if (sellerUser) {
             // Determine profile key based on whether it's property or product conversation
-            const profileKey = conversation.productId ? "ecommerce_seller" : "realestate_seller";
+            const profileKey = conversation.productId
+              ? "ecommerce_seller"
+              : "realestate_seller";
             let currentProfile =
               sellerUser.profiles?.get?.(profileKey) ||
               sellerUser.profiles?.[profileKey] ||
@@ -421,19 +490,28 @@ export const sendMessage = async (req, res) => {
       });
 
       // Get sender info for notification
-      const sender = await User.findById(senderId).select("name firstName lastName");
+      const sender = await User.findById(senderId).select(
+        "name firstName lastName",
+      );
       const senderName = sender?.name || sender?.firstName || "Someone";
 
       // Create notification for receiver
       try {
+        const isReceiverSeller =
+          receiverId.toString() === conversation.sellerId.toString();
+
+        // Determine routing channel based on contextType
+        let channel = "ecommerce";
+        if (conversation.contextType === "property") channel = "real-estate";
+
+        const role = isReceiverSeller ? "seller" : "buyer";
+
         await createNotification({
           userId: receiverId,
           type: "new_message",
           title: "New Message",
           message: `${senderName}: ${trimmedMessage || (mediaUrl ? fileName || "Sent an attachment" : "Sent a message")}`,
-          actionUrl: conversation.productId 
-            ? `/ecommerce/buyer/messages/${conversationId}`
-            : `/real-estate/buyer/messages/${conversationId}`,
+          actionUrl: `/${channel}/${role}/messages/${conversationId}`,
           metadata: {
             conversationId: conversationId.toString(),
             senderId: senderId.toString(),
@@ -472,5 +550,3 @@ export const updateLastSeen = async (req, res) => {
     return res.status(500).json({ message: "Failed to update last seen" });
   }
 };
-
-
