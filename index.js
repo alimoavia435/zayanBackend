@@ -139,11 +139,12 @@ app.use(
       // Allow requests with no origin (like mobile apps or curl)
       if (!origin) return callback(null, true);
 
-      // Check if origin is in allowedOrigins or matches dynamic patterns
+      // Check if origin is a valid Vercel deployment, localhost, or explicitly allowed
       const isAllowed =
-        allowedOrigins.indexOf(origin) !== -1 ||
-        origin.endsWith(".vercel.app") ||
-        origin.includes("localhost");
+        allowedOrigins.includes(origin) ||
+        origin.indexOf(".vercel.app") !== -1 ||
+        origin.indexOf("localhost") !== -1 ||
+        origin.indexOf("shwanix.com") !== -1;
 
       if (isAllowed) {
         callback(null, true);
@@ -152,9 +153,16 @@ app.use(
         callback(null, false);
       }
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
     credentials: true,
-    optionsSuccessStatus: 200,
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+    ],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   }),
 );
 

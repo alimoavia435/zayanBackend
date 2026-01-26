@@ -417,52 +417,6 @@ export const sendMessage = async (req, res) => {
     conversation.lastMessageSender = senderId;
     await conversation.save();
 
-    if (
-      senderId.toString() === conversation.sellerId.toString() &&
-      lastConversationMessage
-    ) {
-      const lastSender = lastConversationMessage.senderId?.toString();
-      if (lastSender && lastSender !== senderId.toString()) {
-        const responseMinutes =
-          (newMessage.createdAt.getTime() -
-            lastConversationMessage.createdAt.getTime()) /
-          60000;
-        if (!Number.isNaN(responseMinutes) && responseMinutes >= 0) {
-          const sellerUser = await User.findById(conversation.sellerId);
-          if (sellerUser) {
-            // Determine profile key based on whether it's property or product conversation
-            const profileKey = conversation.productId
-              ? "ecommerce_seller"
-              : "realestate_seller";
-            let currentProfile =
-              sellerUser.profiles?.get?.(profileKey) ||
-              sellerUser.profiles?.[profileKey] ||
-              {};
-            const prevAvg = currentProfile?.averageResponseMinutes ?? null;
-            const prevCount = currentProfile?.responseSamples ?? 0;
-            const newAvg =
-              prevAvg !== null
-                ? (prevAvg * prevCount + responseMinutes) / (prevCount + 1)
-                : responseMinutes;
-            currentProfile = {
-              ...currentProfile,
-              averageResponseMinutes: newAvg,
-              responseSamples: prevCount + 1,
-            };
-
-            if (typeof sellerUser.profiles?.set === "function") {
-              sellerUser.profiles.set(profileKey, currentProfile);
-            } else {
-              sellerUser.profiles = sellerUser.profiles || {};
-              sellerUser.profiles[profileKey] = currentProfile;
-            }
-
-            await sellerUser.save();
-          }
-        }
-      }
-    }
-
     const formattedMessage = {
       id: newMessage._id,
       conversationId: newMessage.conversationId,
@@ -476,57 +430,104 @@ export const sendMessage = async (req, res) => {
       updatedAt: newMessage.updatedAt,
     };
 
-    const io = req.app.get("io");
-    if (io) {
-      const receiverId =
-        senderId.toString() === conversation.buyerId.toString()
-          ? conversation.sellerId.toString()
-          : conversation.buyerId.toString();
-
-      io.to(conversationId).emit("newMessage", formattedMessage);
-      io.to(receiverId).emit("notification", {
-        conversationId,
-        message: formattedMessage,
-      });
-
-      // Get sender info for notification
-      const sender = await User.findById(senderId).select(
-        "name firstName lastName",
-      );
-      const senderName = sender?.name || sender?.firstName || "Someone";
-
-      // Create notification for receiver
+    // Background tasks: Response time and Notifications
+    const processBackgroundTasks = async () => {
       try {
-        const isReceiverSeller =
-          receiverId.toString() === conversation.sellerId.toString();
+        if (
+          senderId.toString() === conversation.sellerId.toString() &&
+          lastConversationMessage
+        ) {
+          const lastSender = lastConversationMessage.senderId?.toString();
+          if (lastSender && lastSender !== senderId.toString()) {
+            const responseMinutes =
+              (newMessage.createdAt.getTime() -
+                lastConversationMessage.createdAt.getTime()) /
+              60000;
+            if (!Number.isNaN(responseMinutes) && responseMinutes >= 0) {
+              const sellerUser = await User.findById(conversation.sellerId);
+              if (sellerUser) {
+                const profileKey = conversation.productId
+                  ? "ecommerce_seller"
+                  : "realestate_seller";
+                let currentProfile =
+                  sellerUser.profiles?.get?.(profileKey) ||
+                  sellerUser.profiles?.[profileKey] ||
+                  {};
+                const prevAvg = currentProfile?.averageResponseMinutes ?? null;
+                const prevCount = currentProfile?.responseSamples ?? 0;
+                const newAvg =
+                  prevAvg !== null
+                    ? (prevAvg * prevCount + responseMinutes) / (prevCount + 1)
+                    : responseMinutes;
+                currentProfile = {
+                  ...currentProfile,
+                  averageResponseMinutes: newAvg,
+                  responseSamples: prevCount + 1,
+                };
 
-        // Determine routing channel based on contextType
-        let channel = "ecommerce";
-        if (conversation.contextType === "property") channel = "real-estate";
+                if (typeof sellerUser.profiles?.set === "function") {
+                  sellerUser.profiles.set(profileKey, currentProfile);
+                } else {
+                  sellerUser.profiles = sellerUser.profiles || {};
+                  sellerUser.profiles[profileKey] = currentProfile;
+                }
 
-        const role = isReceiverSeller ? "seller" : "buyer";
+                await sellerUser.save();
+              }
+            }
+          }
+        }
 
-        await createNotification({
-          userId: receiverId,
-          type: "new_message",
-          title: "New Message",
-          message: `${senderName}: ${trimmedMessage || (mediaUrl ? fileName || "Sent an attachment" : "Sent a message")}`,
-          actionUrl: `/${channel}/${role}/messages/${conversationId}`,
-          metadata: {
+        // Notification logic
+        const io = req.app.get("io");
+        if (io) {
+          const receiverId =
+            senderId.toString() === conversation.buyerId.toString()
+              ? conversation.sellerId.toString()
+              : conversation.buyerId.toString();
+
+          io.to(conversationId.toString()).emit("newMessage", formattedMessage);
+          io.to(receiverId.toString()).emit("notification", {
             conversationId: conversationId.toString(),
-            senderId: senderId.toString(),
-            messageId: newMessage._id.toString(),
-          },
-          relatedId: conversationId,
-          relatedType: "conversation",
-          sendEmail: true,
-          io,
-        });
-      } catch (notifError) {
-        console.error("Failed to create notification for message:", notifError);
-        // Don't fail the message send if notification fails
+            message: formattedMessage,
+          });
+
+          const sender = await User.findById(senderId).select(
+            "name firstName lastName",
+          );
+          const senderName = sender?.name || sender?.firstName || "Someone";
+
+          let channel = "ecommerce";
+          if (conversation.contextType === "property") channel = "real-estate";
+          const role =
+            receiverId.toString() === conversation.sellerId.toString()
+              ? "seller"
+              : "buyer";
+
+          createNotification({
+            userId: receiverId,
+            type: "new_message",
+            title: "New Message",
+            message: `${senderName}: ${trimmedMessage || (mediaUrl ? fileName || "Sent an attachment" : "Sent a message")}`,
+            actionUrl: `/${channel}/${role}/messages/${conversationId}`,
+            metadata: {
+              conversationId: conversationId.toString(),
+              senderId: senderId.toString(),
+              messageId: newMessage._id.toString(),
+            },
+            relatedId: conversationId,
+            relatedType: "conversation",
+            sendEmail: true,
+            io,
+          }).catch((e) => console.error("Notification background error", e));
+        }
+      } catch (err) {
+        console.error("Background task error:", err);
       }
-    }
+    };
+
+    // Trigger background tasks and return response immediately
+    processBackgroundTasks();
 
     return res.status(201).json({ message: formattedMessage });
   } catch (error) {
