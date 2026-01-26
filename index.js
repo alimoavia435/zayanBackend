@@ -48,25 +48,42 @@ import { checkExpiringSubscriptions } from "./utils/subscriptionExpirationServic
 dotenv.config({ path: [".env.local", ".env"] });
 
 // Connect to database (non-blocking for deployment)
-connectDB().catch((error) => {
-  console.error("Failed to connect to database:", error);
-  // Don't exit immediately - allow server to start and retry connection
-  // This helps with deployment where DB might not be immediately available
-  console.log("⚠️  Server will continue without DB connection. Retrying...");
-  // Retry connection after 5 seconds
-  setTimeout(() => {
-    connectDB().catch((err) => {
-      console.error("Retry failed:", err);
-    });
-  }, 5000);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    // Resume background tasks after connection
+    setTimeout(async () => {
+      try {
+        await checkExpiringSubscriptions(io);
+        console.log("✅ Initial subscription expiration check completed");
+      } catch (error) {
+        console.error(
+          "❌ Initial subscription expiration check failed:",
+          error,
+        );
+      }
+    }, 5000); // Wait 5 seconds after server starts
+  } catch (error) {
+    console.error("Failed to connect to database:", error);
+    console.log("⚠️  Server will start but DB functionality will be limited.");
+  }
+};
+
+startServer();
 
 const app = express();
 const server = http.createServer(app);
 const allowedOrigins = [
   "https://zayan-ruddy.vercel.app",
+  "https://zayan-ruddy.vercel.app/",
   "http://localhost:3000",
+  "http://localhost:3000/",
   "https://zayan-admin.vercel.app",
+  "https://zayan-admin.vercel.app/",
+  "https://zyan.shwanix.com",
+  "https://zyan.shwanix.com/",
+  "http://zyan.shwanix.com",
 ];
 
 // Initialize Socket.io for real-time features
@@ -76,6 +93,8 @@ const io = new Server(server, {
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   },
+  transports: ["websocket", "polling"],
+  allowEIO3: true,
 });
 
 app.set("io", io);
@@ -102,7 +121,17 @@ io.on("connection", (socket) => {
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.log("🚫 CORS Blocked for origin:", origin);
+        callback(null, false);
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   }),
@@ -197,14 +226,7 @@ setInterval(
 ); // 6 hours
 
 // Run immediately on startup (after server starts)
-setTimeout(async () => {
-  try {
-    await checkExpiringSubscriptions(io);
-    console.log("✅ Initial subscription expiration check completed");
-  } catch (error) {
-    console.error("❌ Initial subscription expiration check failed:", error);
-  }
-}, 5000); // Wait 5 seconds after server starts
+// This is now handled inside startServer() to ensure DB connection
 
 const PORT = process.env.PORT || 5000;
 

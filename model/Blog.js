@@ -70,7 +70,7 @@ const blogSchema = new mongoose.Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Generate slug from title before saving
@@ -96,7 +96,11 @@ blogSchema.pre("save", async function () {
 
 // Update publishedAt when status changes to published
 blogSchema.pre("save", async function () {
-  if (this.isModified("status") && this.status === "published" && !this.publishedAt) {
+  if (
+    this.isModified("status") &&
+    this.status === "published" &&
+    !this.publishedAt
+  ) {
     this.publishedAt = new Date();
   }
 });
@@ -104,10 +108,8 @@ blogSchema.pre("save", async function () {
 // Index for efficient queries
 blogSchema.index({ status: 1, publishedAt: -1 });
 blogSchema.index({ category: 1, status: 1 });
-blogSchema.index({ slug: 1 });
 blogSchema.index({ isFeatured: 1, status: 1 });
 
 const Blog = mongoose.model("Blog", blogSchema);
 
 export default Blog;
-
