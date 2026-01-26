@@ -196,7 +196,6 @@ export const createSellerReview = async (req, res) => {
 
     // Check if user already reviewed this seller
     const existingReview = await Review.findOne({
-      type: "seller",
       seller: sellerId,
       user: buyerId,
     });

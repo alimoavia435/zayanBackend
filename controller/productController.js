@@ -8,8 +8,18 @@ import { buildProfileResponse } from "./profileController.js";
 
 export const createProduct = async (req, res) => {
   try {
-    const { store, category, name, description, price, currency, unit, images, stock, sku } =
-      req.body;
+    const {
+      store,
+      category,
+      name,
+      description,
+      price,
+      currency,
+      unit,
+      images,
+      stock,
+      sku,
+    } = req.body;
 
     if (!req.user?._id) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -215,17 +225,20 @@ export const getProductByIdForBuyer = async (req, res) => {
     await Product.findByIdAndUpdate(id, { $inc: { views: 1 } });
 
     // Get store owner info for seller card
-    const storeId = typeof product.store === "object" ? product.store._id : product.store;
+    const storeId =
+      typeof product.store === "object" ? product.store._id : product.store;
     const store = await Store.findById(storeId).lean();
     let sellerInfo = null;
     if (store && store.owner) {
       const sellerProfile = await buildProfileResponse(
         store.owner.toString(),
-        "ecommerce_seller"
+        "ecommerce_seller",
       );
       if (sellerProfile) {
         sellerInfo = {
-          name: `${sellerProfile.firstName || ""} ${sellerProfile.lastName || ""}`.trim() || "Unknown Seller",
+          name:
+            `${sellerProfile.firstName || ""} ${sellerProfile.lastName || ""}`.trim() ||
+            "Unknown Seller",
           avatar: sellerProfile.avatar || "U",
           rating: sellerProfile.rating || 0,
           email: sellerProfile.email || "",
@@ -238,9 +251,12 @@ export const getProductByIdForBuyer = async (req, res) => {
 
     // Check if current user has liked this product
     const userId = req.user?._id?.toString();
-    const isLiked = userId && product.likedBy
-      ? product.likedBy.some((likedUserId) => likedUserId.toString() === userId)
-      : false;
+    const isLiked =
+      userId && product.likedBy
+        ? product.likedBy.some(
+            (likedUserId) => likedUserId.toString() === userId,
+          )
+        : false;
 
     // Format response
     const formattedProduct = {
@@ -284,8 +300,18 @@ export const updateProduct = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, description, price, currency, unit, images, stock, sku, status, category } =
-      req.body;
+    const {
+      name,
+      description,
+      price,
+      currency,
+      unit,
+      images,
+      stock,
+      sku,
+      status,
+      category,
+    } = req.body;
 
     const product = await Product.findOne({
       _id: id,
@@ -383,7 +409,12 @@ export const getProductsByStoreId = async (req, res) => {
     }
 
     const { storeId } = req.params;
-    const { searchTerm, category, sortBy = "createdAt", order = "desc" } = req.query;
+    const {
+      searchTerm,
+      category,
+      sortBy = "createdAt",
+      order = "desc",
+    } = req.query;
 
     // Build filter - only active products from the specified store
     const filter = {
@@ -412,7 +443,7 @@ export const getProductsByStoreId = async (req, res) => {
       products = products.filter(
         (product) =>
           searchRegex.test(product.name) ||
-          searchRegex.test(product.description || "")
+          searchRegex.test(product.description || ""),
       );
     }
 
@@ -453,7 +484,15 @@ export const getAllProductsForBuyer = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { searchTerm, category, store, sortBy = "createdAt", order = "desc", minPrice, maxPrice } = req.query;
+    const {
+      searchTerm,
+      category,
+      store,
+      sortBy = "createdAt",
+      order = "desc",
+      minPrice,
+      maxPrice,
+    } = req.query;
 
     // Build filter - only active products
     const filter = {
@@ -486,7 +525,7 @@ export const getAllProductsForBuyer = async (req, res) => {
       products = products.filter(
         (product) =>
           searchRegex.test(product.name) ||
-          searchRegex.test(product.description || "")
+          searchRegex.test(product.description || ""),
       );
     }
 
@@ -506,9 +545,12 @@ export const getAllProductsForBuyer = async (req, res) => {
     // Format response
     const formattedProducts = products.map((product) => {
       // Check if current user has liked this product
-      const isLiked = userId && product.likedBy
-        ? product.likedBy.some((likedUserId) => likedUserId.toString() === userId)
-        : false;
+      const isLiked =
+        userId && product.likedBy
+          ? product.likedBy.some(
+              (likedUserId) => likedUserId.toString() === userId,
+            )
+          : false;
 
       return {
         _id: product._id.toString(),
@@ -571,7 +613,10 @@ export const updateStoreRating = async (storeId) => {
       return;
     }
 
-    const totalRating = products.reduce((sum, product) => sum + (product.rating || 0), 0);
+    const totalRating = products.reduce(
+      (sum, product) => sum + (product.rating || 0),
+      0,
+    );
     const averageRating = totalRating / products.length;
     const roundedRating = Math.round(averageRating * 10) / 10; // Round to 1 decimal place
 
@@ -592,7 +637,9 @@ export const createProductReview = async (req, res) => {
     const { rating, title, comment } = req.body;
 
     if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+      return res
+        .status(400)
+        .json({ message: "Rating must be between 1 and 5" });
     }
 
     // Check if product exists and is active
@@ -603,7 +650,6 @@ export const createProductReview = async (req, res) => {
 
     // Check if user already reviewed this product
     const existingReview = await Review.findOne({
-      type: "product",
       product: id,
       user: req.user._id,
     });
@@ -632,13 +678,14 @@ export const createProductReview = async (req, res) => {
     await updateProductRating(id);
 
     // Update store rating
-    const storeId = typeof product.store === "object" ? product.store._id : product.store;
+    const storeId =
+      typeof product.store === "object" ? product.store._id : product.store;
     await updateStoreRating(storeId);
 
     // Get buyer profile using buildProfileResponse
     const buyerProfile = await buildProfileResponse(
       req.user._id.toString(),
-      "ecommerce_buyer"
+      "ecommerce_buyer",
     );
 
     // Format user info from profile
@@ -655,7 +702,9 @@ export const createProductReview = async (req, res) => {
     }
 
     return res.status(201).json({
-      message: existingReview ? "Review updated successfully" : "Review created successfully",
+      message: existingReview
+        ? "Review updated successfully"
+        : "Review created successfully",
       review: {
         _id: review._id.toString(),
         product: review.product.toString(),
@@ -675,7 +724,9 @@ export const createProductReview = async (req, res) => {
   } catch (error) {
     console.error("createProductReview error", error);
     if (error.code === 11000) {
-      return res.status(400).json({ message: "You have already reviewed this product" });
+      return res
+        .status(400)
+        .json({ message: "You have already reviewed this product" });
     }
     return res.status(500).json({ message: error.message });
   }
@@ -696,9 +747,9 @@ export const getProductReviews = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const reviews = await Review.find({ 
+    const reviews = await Review.find({
       type: "product",
-      product: id 
+      product: id,
     })
       .populate("user", "_id")
       .sort({ createdAt: -1 })
@@ -710,7 +761,7 @@ export const getProductReviews = async (req, res) => {
         // Get buyer profile using buildProfileResponse
         const buyerProfile = await buildProfileResponse(
           review.user._id.toString(),
-          "ecommerce_buyer"
+          "ecommerce_buyer",
         );
 
         // Format user info from profile
@@ -743,7 +794,7 @@ export const getProductReviews = async (req, res) => {
           createdAt: review.createdAt,
           updatedAt: review.updatedAt,
         };
-      })
+      }),
     );
 
     return res.json({
@@ -773,7 +824,7 @@ export const likeProduct = async (req, res) => {
 
     // Check if user already liked the product
     const isLiked = product.likedBy.some(
-      (likedUserId) => likedUserId.toString() === userId.toString()
+      (likedUserId) => likedUserId.toString() === userId.toString(),
     );
 
     if (isLiked) {
@@ -812,7 +863,7 @@ export const unlikeProduct = async (req, res) => {
 
     // Check if user has liked the product
     const isLiked = product.likedBy.some(
-      (likedUserId) => likedUserId.toString() === userId.toString()
+      (likedUserId) => likedUserId.toString() === userId.toString(),
     );
 
     if (!isLiked) {
@@ -821,7 +872,7 @@ export const unlikeProduct = async (req, res) => {
 
     // Remove user from likedBy array and decrement likes count
     product.likedBy = product.likedBy.filter(
-      (likedUserId) => likedUserId.toString() !== userId.toString()
+      (likedUserId) => likedUserId.toString() !== userId.toString(),
     );
     product.likes = product.likedBy.length;
     await product.save();
@@ -836,4 +887,3 @@ export const unlikeProduct = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-
