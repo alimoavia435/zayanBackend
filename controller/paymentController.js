@@ -31,19 +31,26 @@ export const createPaymentIntent = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const roleKey = role === "ecommerceSeller" ? "ecommerceSeller" : "realEstateSeller";
+    const roleKey =
+      role === "ecommerceSeller" ? "ecommerceSeller" : "realEstateSeller";
     if (!user.roles.includes(roleKey)) {
-      return res.status(403).json({ message: "You don't have the required role" });
+      return res
+        .status(403)
+        .json({ message: "You don't have the required role" });
     }
 
     // Check if user is verified
     if (user.verificationStatus !== "approved") {
-      return res.status(403).json({ message: "Only verified sellers can purchase subscriptions" });
+      return res
+        .status(403)
+        .json({ message: "Only verified sellers can purchase subscriptions" });
     }
 
     // Check if user is suspended or banned
     if (user.accountStatus !== "active") {
-      return res.status(403).json({ message: "Suspended or banned users cannot subscribe" });
+      return res
+        .status(403)
+        .json({ message: "Suspended or banned users cannot subscribe" });
     }
 
     // Check if role is disabled
@@ -63,7 +70,9 @@ export const createPaymentIntent = async (req, res) => {
 
     // Check if plan is available for this role
     if (plan.targetRole !== "both" && plan.targetRole !== role) {
-      return res.status(400).json({ message: "Plan is not available for this role" });
+      return res
+        .status(400)
+        .json({ message: "Plan is not available for this role" });
     }
 
     // If plan is free, return freePlan flag
@@ -115,7 +124,10 @@ export const createPaymentIntent = async (req, res) => {
     });
   } catch (error) {
     console.error("createPaymentIntent error", error);
-    return res.status(500).json({ message: "Failed to create payment intent", error: error.message });
+    return res.status(500).json({
+      message: "Failed to create payment intent",
+      error: error.message,
+    });
   }
 };
 
@@ -140,7 +152,7 @@ export const handleWebhook = async (req, res) => {
     console.error("Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-console.log(event,"event checking here");
+  console.log(event, "event checking here");
   // Handle the event
   try {
     switch (event.type) {
@@ -159,26 +171,34 @@ console.log(event,"event checking here");
     res.json({ received: true });
   } catch (error) {
     console.error("Error handling webhook:", error);
-    res.status(500).json({ message: "Webhook handler failed", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Webhook handler failed", error: error.message });
   }
 };
 
 // Handle successful payment
 async function handlePaymentSuccess(paymentIntent, app) {
-  console.log(`[Stripe Webhook] Processing successful payment intent: ${paymentIntent.id}`);
+  console.log(
+    `[Stripe Webhook] Processing successful payment intent: ${paymentIntent.id}`,
+  );
   try {
     const { id: paymentIntentId, metadata } = paymentIntent;
 
     // Find payment record
     const payment = await Payment.findOne({ paymentIntentId });
     if (!payment) {
-      console.error(`[Stripe Webhook] Payment record not found for paymentIntentId: ${paymentIntentId}`);
+      console.error(
+        `[Stripe Webhook] Payment record not found for paymentIntentId: ${paymentIntentId}`,
+      );
       return;
     }
 
     // Prevent duplicate processing (idempotency check)
     if (payment.status === "succeeded") {
-      console.log(`[Stripe Webhook] Payment ${paymentIntentId} already processed`);
+      console.log(
+        `[Stripe Webhook] Payment ${paymentIntentId} already processed`,
+      );
       return;
     }
 
@@ -186,7 +206,9 @@ async function handlePaymentSuccess(paymentIntent, app) {
     payment.status = "succeeded";
     payment.processedAt = new Date();
     await payment.save();
-    console.log(`[Stripe Webhook] Payment record updated to succeeded: ${paymentIntentId}`);
+    console.log(
+      `[Stripe Webhook] Payment record updated to succeeded: ${paymentIntentId}`,
+    );
 
     const userId = payment.userId;
     const planId = payment.planId;
@@ -210,9 +232,11 @@ async function handlePaymentSuccess(paymentIntent, app) {
         $set: {
           status: "cancelled",
         },
-      }
+      },
     );
-    console.log(`[Stripe Webhook] Cancelled ${cancelResult.modifiedCount} existing active subscriptions`);
+    console.log(
+      `[Stripe Webhook] Cancelled ${cancelResult.modifiedCount} existing active subscriptions`,
+    );
 
     // Calculate dates
     const startDate = new Date();
@@ -233,7 +257,9 @@ async function handlePaymentSuccess(paymentIntent, app) {
         featuredUsed: 0,
       },
     });
-    console.log(`[Stripe Webhook] Created new subscription: ${subscription._id} for plan: ${plan.name}`);
+    console.log(
+      `[Stripe Webhook] Created new subscription: ${subscription._id} for plan: ${plan.name}`,
+    );
 
     // Track analytics event
     try {
@@ -253,9 +279,14 @@ async function handlePaymentSuccess(paymentIntent, app) {
           paymentIntentId,
         },
       });
-      console.log(`[Stripe Webhook] Analytics tracked for subscription: ${subscription._id}`);
+      console.log(
+        `[Stripe Webhook] Analytics tracked for subscription: ${subscription._id}`,
+      );
     } catch (analyticsError) {
-      console.error("[Stripe Webhook] Failed to track subscription analytics:", analyticsError);
+      console.error(
+        "[Stripe Webhook] Failed to track subscription analytics:",
+        analyticsError,
+      );
     }
 
     // Send notification
@@ -266,24 +297,30 @@ async function handlePaymentSuccess(paymentIntent, app) {
         type: "subscription_activated",
         title: "Subscription Activated",
         message: `Your ${plan.name} subscription for ${role} has been activated! Payment successful.`,
-        actionUrl: role === "ecommerceSeller" 
-          ? "/ecommerce/seller/subscription"
-          : "/real-estate/seller/subscription",
+        actionUrl:
+          role === "ecommerceSeller"
+            ? "/ecommerce/seller/subscription"
+            : "/real-estate/seller/subscription",
         metadata: {
           planId: plan._id.toString(),
           planName: plan.name,
           role,
           paymentIntentId,
         },
-        sendEmail: true,
+        // sendEmail: true,
         io,
       });
       console.log(`[Stripe Webhook] Notification sent to user: ${userId}`);
     } catch (notifError) {
-      console.error("[Stripe Webhook] Failed to send subscription notification:", notifError);
+      console.error(
+        "[Stripe Webhook] Failed to send subscription notification:",
+        notifError,
+      );
     }
 
-    console.log(`[Stripe Webhook] ✅ Payment processing complete for intent: ${paymentIntentId}`);
+    console.log(
+      `[Stripe Webhook] ✅ Payment processing complete for intent: ${paymentIntentId}`,
+    );
   } catch (error) {
     console.error("[Stripe Webhook] ❌ Error in handlePaymentSuccess:", error);
     throw error;
@@ -298,7 +335,9 @@ async function handlePaymentFailure(paymentIntent, app) {
     // Find payment record
     const payment = await Payment.findOne({ paymentIntentId });
     if (!payment) {
-      console.error(`Payment record not found for paymentIntentId: ${paymentIntentId}`);
+      console.error(
+        `Payment record not found for paymentIntentId: ${paymentIntentId}`,
+      );
       return;
     }
 
@@ -308,10 +347,11 @@ async function handlePaymentFailure(paymentIntent, app) {
     payment.failureReason = last_payment_error?.message || "Payment failed";
     await payment.save();
 
-    console.log(`❌ Payment failed: ${paymentIntentId} - ${payment.failureReason}`);
+    console.log(
+      `❌ Payment failed: ${paymentIntentId} - ${payment.failureReason}`,
+    );
   } catch (error) {
     console.error("Error in handlePaymentFailure:", error);
     throw error;
   }
 }
-

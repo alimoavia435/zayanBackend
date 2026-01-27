@@ -50,31 +50,31 @@ export const createNotification = async ({
     }
 
     // Send email notification (fallback)
-    if (sendEmail && user.email) {
-      try {
-        const emailSent = await sendNotificationEmail({
-          to: user.email,
-          name: user.name || "User",
-          notification: {
-            type: notification.type,
-            title: notification.title,
-            message: notification.message,
-            actionUrl: actionUrl
-              ? `${process.env.CLIENT_URL || "http://localhost:3000"}${actionUrl}`
-              : null,
-          },
-        });
+    // if (sendEmail && user.email) {
+    //   try {
+    //     const emailSent = await sendNotificationEmail({
+    //       to: user.email,
+    //       name: user.name || "User",
+    //       notification: {
+    //         type: notification.type,
+    //         title: notification.title,
+    //         message: notification.message,
+    //         actionUrl: actionUrl
+    //           ? `${process.env.CLIENT_URL || "http://localhost:3000"}${actionUrl}`
+    //           : null,
+    //       },
+    //     });
 
-        if (emailSent) {
-          notification.emailSent = true;
-          notification.emailSentAt = new Date();
-          await notification.save();
-        }
-      } catch (emailError) {
-        console.error("Failed to send notification email:", emailError);
-        // Don't fail the notification creation if email fails
-      }
-    }
+    //     if (emailSent) {
+    //       notification.emailSent = true;
+    //       notification.emailSentAt = new Date();
+    //       await notification.save();
+    //     }
+    //   } catch (emailError) {
+    //     console.error("Failed to send notification email:", emailError);
+    //     // Don't fail the notification creation if email fails
+    //   }
+    // }
 
     return notification;
   } catch (error) {
@@ -112,7 +112,9 @@ export const getUserNotifications = async (req, res) => {
     });
   } catch (error) {
     console.error("getUserNotifications error", error);
-    return res.status(500).json({ message: "Failed to retrieve notifications" });
+    return res
+      .status(500)
+      .json({ message: "Failed to retrieve notifications" });
   }
 };
 
@@ -141,7 +143,9 @@ export const markAsRead = async (req, res) => {
     });
   } catch (error) {
     console.error("markAsRead error", error);
-    return res.status(500).json({ message: "Failed to mark notification as read" });
+    return res
+      .status(500)
+      .json({ message: "Failed to mark notification as read" });
   }
 };
 
@@ -157,7 +161,7 @@ export const markAllAsRead = async (req, res) => {
           read: true,
           readAt: new Date(),
         },
-      }
+      },
     );
 
     return res.status(200).json({
@@ -166,7 +170,9 @@ export const markAllAsRead = async (req, res) => {
     });
   } catch (error) {
     console.error("markAllAsRead error", error);
-    return res.status(500).json({ message: "Failed to mark all notifications as read" });
+    return res
+      .status(500)
+      .json({ message: "Failed to mark all notifications as read" });
   }
 };
 
@@ -213,4 +219,3 @@ export const getUnreadCount = async (req, res) => {
     return res.status(500).json({ message: "Failed to retrieve unread count" });
   }
 };
-
