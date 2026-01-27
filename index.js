@@ -169,10 +169,6 @@ app.use(
   }),
 );
 
-// Mount webhook routes BEFORE body parser to ensure raw body is preserved if needed
-// or we can just use the verify function in express.json as before
-app.use("/api/webhooks", webhookRoutes);
-
 app.use(
   express.json({
     limit: "50mb",
@@ -186,6 +182,9 @@ app.use(
     },
   }),
 );
+
+// Mount webhook routes AFTER body parser verify function captures rawBody
+app.use("/api/webhooks", webhookRoutes);
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 
