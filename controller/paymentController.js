@@ -307,7 +307,7 @@ async function handlePaymentSuccess(paymentIntent, app) {
           role,
           paymentIntentId,
         },
-        // sendEmail: true,
+        sendEmail: true,
         io,
       });
       console.log(`[Stripe Webhook] Notification sent to user: ${userId}`);

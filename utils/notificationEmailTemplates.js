@@ -1,17 +1,7 @@
-import nodemailer from "nodemailer";
+import { sendEmail } from "./emailService.js";
 import dotenv from "dotenv";
 
 dotenv.config();
-
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.MAIL_USER || "maharalimoavia396@gmail.com",
-    pass: process.env.MAIL_PASS || "idku nwib vxcp jwpr",
-  },
-});
 
 const baseEmailStyles = `
   <style>
@@ -25,11 +15,6 @@ const baseEmailStyles = `
 `;
 
 export const sendNotificationEmail = async ({ to, name, notification }) => {
-  if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
-    console.warn("Email credentials not configured. Skipping email notification.");
-    return false;
-  }
-
   try {
     let emailSubject = notification.title;
     let emailBody = "";
@@ -164,18 +149,21 @@ export const sendNotificationEmail = async ({ to, name, notification }) => {
         `;
     }
 
-    const mailOptions = {
-      from: `"Zayan" <${process.env.MAIL_USER}>`,
+    await sendEmail({
       to,
       subject: emailSubject,
       html: baseEmailStyles + emailBody,
-    };
+    });
 
-    await transporter.sendMail(mailOptions);
+    console.log(
+      `✅ [sendNotificationEmail] Notification email sent to ${to} via SendGrid`,
+    );
     return true;
   } catch (error) {
-    console.error("Failed to send notification email:", error);
+    console.error(
+      "❌ [sendNotificationEmail] Failed to send notification email via SendGrid:",
+      error.message,
+    );
     return false;
   }
 };
-

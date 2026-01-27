@@ -1,39 +1,11 @@
-import nodemailer from "nodemailer";
+import { sendEmail } from "./emailService.js";
 import dotenv from "dotenv";
 dotenv.config();
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.MAIL_USER || "maharalimoavia396@gmail.com",
-    pass: process.env.MAIL_PASS || "idku nwib vxcp jwpr",
-  },
-});
-console.log("email credentials", process.env.MAIL_USER, process.env.MAIL_PASS);
-
-// Verify transporter configuration on startup
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error("❌ Email transporter verification failed:", error.message);
-  } else {
-    console.log("✅ Email server is ready to send messages");
-  }
-});
 
 export const sendOtpEmail = async ({ to, otp, name }) => {
-  if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
-    console.error("❌ [sendOtpEmail] Email credentials are not configured!");
-    throw new Error("Email credentials are not configured");
-  }
+  console.log(`Sending OTP email to ${to}`);
 
-  console.log("✅ [sendOtpEmail] Email credentials verified");
-
-  const mailOptions = {
-    from: `"Zayan" <${process.env.MAIL_USER}>`,
-    to,
-    subject: "Zayan Email Verification Code",
-    html: `
+  const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5;">
         <h2>Hi ${name},</h2>
         <p>Thanks for signing up for Zayan.</p>
@@ -43,17 +15,21 @@ export const sendOtpEmail = async ({ to, otp, name }) => {
         <p>If you did not create this account, you can safely ignore this email.</p>
         <p>Best regards,<br/>Zayan Team</p>
       </div>
-    `,
-  };
+    `;
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    return info;
+    await sendEmail({
+      to,
+      subject: "Zayan Email Verification Code",
+      html,
+    });
+    console.log("✅ [sendOtpEmail] OTP email sent successfully via SendGrid");
+    return true;
   } catch (error) {
-    console.error("❌ [sendOtpEmail] Failed to send email:");
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error code:", error.code);
+    console.error(
+      "❌ [sendOtpEmail] Failed to send email via SendGrid:",
+      error.message,
+    );
     throw error;
   }
 };

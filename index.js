@@ -38,6 +38,7 @@ import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import adminSubscriptionRoutes from "./routes/adminSubscriptionRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import locationRoutes from "./routes/locationRoutes.js";
+import webhookRoutes from "./routes/webhookRoutes.js";
 import {
   getSupportConversation,
   sendSupportMessage,
@@ -133,6 +134,8 @@ io.on("connection", (socket) => {
   });
 });
 
+// ... (existing code)
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -166,11 +169,18 @@ app.use(
   }),
 );
 
+// Mount webhook routes BEFORE body parser to ensure raw body is preserved if needed
+// or we can just use the verify function in express.json as before
+app.use("/api/webhooks", webhookRoutes);
+
 app.use(
   express.json({
     limit: "50mb",
     verify: (req, res, buf) => {
-      if (req.originalUrl.startsWith("/api/payments/webhook")) {
+      if (
+        req.originalUrl.startsWith("/api/payments/webhook") ||
+        req.originalUrl.startsWith("/api/webhooks/stripe")
+      ) {
         req.rawBody = buf;
       }
     },
