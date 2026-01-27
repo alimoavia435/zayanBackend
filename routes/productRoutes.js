@@ -1,5 +1,5 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, optionalProtect } from "../middleware/authMiddleware.js";
 import {
   createProduct,
   getProducts,
@@ -18,10 +18,7 @@ import {
 const router = express.Router();
 
 // Product routes - CRUD operations
-router
-  .route("/")
-  .post(protect, createProduct)
-  .get(protect, getProducts);
+router.route("/").post(protect, createProduct).get(protect, getProducts);
 
 router
   .route("/:id")
@@ -30,19 +27,18 @@ router
   .delete(protect, deleteProduct);
 
 // Buyer routes - get products by store ID
-router.get("/buyer/store/:storeId", protect, getProductsByStoreId);
+router.get("/buyer/store/:storeId", optionalProtect, getProductsByStoreId);
 // Buyer routes - get all products
-router.get("/buyer/all", protect, getAllProductsForBuyer);
+router.get("/buyer/all", optionalProtect, getAllProductsForBuyer);
 // Buyer routes - get product by ID
-router.get("/buyer/:id", protect, getProductByIdForBuyer);
+router.get("/buyer/:id", optionalProtect, getProductByIdForBuyer);
 
 // Review routes
 router.post("/buyer/:id/review", protect, createProductReview);
-router.get("/buyer/:id/reviews", protect, getProductReviews);
+router.get("/buyer/:id/reviews", optionalProtect, getProductReviews);
 
 // Like routes
 router.post("/buyer/:id/like", protect, likeProduct);
 router.post("/buyer/:id/unlike", protect, unlikeProduct);
 
 export default router;
-

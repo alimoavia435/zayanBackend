@@ -1,7 +1,10 @@
 import Store from "../model/Store.js";
 import Product from "../model/Product.js";
-import { buildProfileResponse } from "./profileController.js";
+import Category from "../model/Category.js";
+import UserSubscription from "../model/UserSubscription.js";
+import SubscriptionPlan from "../model/SubscriptionPlan.js";
 import { updateStoreRating } from "./productController.js";
+import { buildProfileResponse } from "./profileController.js";
 
 export const createStore = async (req, res) => {
   try {
@@ -18,9 +21,59 @@ export const createStore = async (req, res) => {
     }
 
     // Use bannerImage if provided and not empty, otherwise use default emoji
-    const finalBannerImage = bannerImage && bannerImage.trim() !== "" 
-      ? bannerImage 
-      : "🏪";
+    const finalBannerImage =
+      bannerImage && bannerImage.trim() !== "" ? bannerImage : "🏪";
+
+    // Check subscription limits for ecommerceSeller role
+    const userId = req.user._id;
+    const subscription = await UserSubscription.findOne({
+      userId,
+      role: "ecommerceSeller",
+      status: "active",
+    }).populate("planId");
+
+    if (subscription) {
+      // Check if subscription is still valid
+      const now = new Date();
+      if (subscription.endDate < now) {
+        subscription.status = "expired";
+        await subscription.save();
+        return res.status(403).json({
+          message:
+            "Your subscription has expired. Please renew to create more stores.",
+        });
+      } else {
+        // Check store limit
+        const maxStores = subscription.planId.features.maxStores || 1;
+        const currentStoreCount = await Store.countDocuments({ owner: userId });
+
+        if (currentStoreCount >= maxStores) {
+          return res.status(403).json({
+            message: `You have reached your store limit of ${maxStores} store(s). Please upgrade your plan to create more stores.`,
+            limit: maxStores,
+            current: currentStoreCount,
+          });
+        }
+      }
+    } else {
+      // Fallback: check for a free Basic plan to allow 1 store
+      const basicPlan = await SubscriptionPlan.findOne({
+        name: "Basic",
+        targetRole: { $in: ["ecommerceSeller", "both"] },
+        isActive: true,
+      });
+
+      const currentStoreCount = await Store.countDocuments({ owner: userId });
+      const limit = basicPlan?.features?.maxStores || 1;
+
+      if (currentStoreCount >= limit) {
+        return res.status(403).json({
+          message: `You have reached the free store limit of ${limit} store(s). Please subscribe to a plan to create more stores.`,
+          limit: limit,
+          current: currentStoreCount,
+        });
+      }
+    }
 
     const store = await Store.create({
       owner: req.user._id,
@@ -29,6 +82,12 @@ export const createStore = async (req, res) => {
       location,
       bannerImage: finalBannerImage,
     });
+
+    // Update subscription usage if subscription exists
+    if (subscription && subscription.status === "active") {
+      subscription.usage.storesUsed = (subscription.usage.storesUsed || 0) + 1;
+      await subscription.save();
+    }
 
     return res.status(201).json({
       message: "Store created successfully",
@@ -59,7 +118,7 @@ export const getStores = async (req, res) => {
           ...store.toObject(),
           products: productCount,
         };
-      })
+      }),
     );
 
     return res.json({
@@ -134,9 +193,8 @@ export const updateStore = async (req, res) => {
     if (location !== undefined) store.location = location;
     if (bannerImage !== undefined) {
       // If bannerImage is provided but empty, use default emoji
-      store.bannerImage = bannerImage && bannerImage.trim() !== "" 
-        ? bannerImage 
-        : "🏪";
+      store.bannerImage =
+        bannerImage && bannerImage.trim() !== "" ? bannerImage : "🏪";
     }
     if (status !== undefined) store.status = status;
 
@@ -170,7 +228,14 @@ export const deleteStore = async (req, res) => {
       return res.status(404).json({ message: "Store not found" });
     }
 
-    return res.json({ message: "Store deleted successfully" });
+    // Cascading delete: Products and Categories related to this store
+    await Product.deleteMany({ store: id });
+    await Category.deleteMany({ store: id });
+
+    return res.json({
+      message:
+        "Store and all related products and categories deleted successfully",
+    });
   } catch (error) {
     console.error("deleteStore error", error);
     return res.status(500).json({ message: error.message });
@@ -180,13 +245,13 @@ export const deleteStore = async (req, res) => {
 // Get all stores for buyer (public view)
 export const getAllStoresForBuyer = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     // Get query parameters for filtering
-    const { searchTerm, location, sortBy = "createdAt", order = "desc" } =
-      req.query;
+    const {
+      searchTerm,
+      location,
+      sortBy = "createdAt",
+      order = "desc",
+    } = req.query;
 
     // Build filter object
     const filter = {
@@ -212,7 +277,7 @@ export const getAllStoresForBuyer = async (req, res) => {
         (store) =>
           searchRegex.test(store.name) ||
           searchRegex.test(store.description) ||
-          searchRegex.test(store.location)
+          searchRegex.test(store.location),
       );
     }
 
@@ -229,14 +294,17 @@ export const getAllStoresForBuyer = async (req, res) => {
         const updatedStore = await Store.findById(store._id).lean();
 
         // Check if current user is following this store
-        const isFollowing = updatedStore?.followersList?.some(
-          (followerId) => followerId.toString() === req.user._id.toString()
-        ) || false;
+        const isFollowing =
+          (req.user &&
+            updatedStore?.followersList?.some(
+              (followerId) => followerId.toString() === req.user._id.toString(),
+            )) ||
+          false;
 
         // Get seller profile using buildProfileResponse with ecommerce_seller role
         const sellerProfile = await buildProfileResponse(
           store.owner?.toString() || store.owner,
-          "ecommerce_seller"
+          "ecommerce_seller",
         );
 
         // Use seller profile data, fallback to owner basic data if profile not found
@@ -275,7 +343,7 @@ export const getAllStoresForBuyer = async (req, res) => {
           createdAt: store.createdAt,
           updatedAt: store.updatedAt,
         };
-      })
+      }),
     );
 
     return res.json({
@@ -292,10 +360,6 @@ export const getAllStoresForBuyer = async (req, res) => {
 // Get store by id for buyer (public view)
 export const getStoreByIdForBuyer = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const { id } = req.params;
 
     // Find store by ID (buyers can view any active store)
@@ -321,14 +385,17 @@ export const getStoreByIdForBuyer = async (req, res) => {
     const updatedStore = await Store.findById(id).lean();
 
     // Check if current user is following this store
-    const isFollowing = updatedStore?.followersList?.some(
-      (followerId) => followerId.toString() === req.user._id.toString()
-    ) || false;
+    const isFollowing =
+      (req.user &&
+        updatedStore?.followersList?.some(
+          (followerId) => followerId.toString() === req.user._id.toString(),
+        )) ||
+      false;
 
     // Get seller profile using buildProfileResponse with ecommerce_seller role
     const sellerProfile = await buildProfileResponse(
       store.owner?.toString() || store.owner,
-      "ecommerce_seller"
+      "ecommerce_seller",
     );
 
     // Use seller profile data, fallback to basic data if profile not found
@@ -450,7 +517,9 @@ export const followStore = async (req, res) => {
 
     // Check if user is already following
     if (store.followersList.includes(userId)) {
-      return res.status(400).json({ message: "You are already following this store" });
+      return res
+        .status(400)
+        .json({ message: "You are already following this store" });
     }
 
     // Add user to followers list and increment count
@@ -488,12 +557,14 @@ export const unfollowStore = async (req, res) => {
 
     // Check if user is following
     if (!store.followersList.includes(userId)) {
-      return res.status(400).json({ message: "You are not following this store" });
+      return res
+        .status(400)
+        .json({ message: "You are not following this store" });
     }
 
     // Remove user from followers list and decrement count
     store.followersList = store.followersList.filter(
-      (followerId) => followerId.toString() !== userId.toString()
+      (followerId) => followerId.toString() !== userId.toString(),
     );
     store.followers = store.followersList.length;
     await store.save();
@@ -508,4 +579,3 @@ export const unfollowStore = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-

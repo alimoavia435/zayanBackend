@@ -18,7 +18,13 @@ export const trackEvent = async (req, res) => {
     } = req.body;
 
     // Validate event type
-    const validEventTypes = ["view", "click", "chat_started", "message_sent", "message_received"];
+    const validEventTypes = [
+      "view",
+      "click",
+      "chat_started",
+      "message_sent",
+      "message_received",
+    ];
     if (!validEventTypes.includes(eventType)) {
       return res.status(400).json({ message: "Invalid event type" });
     }
@@ -61,6 +67,22 @@ export const trackEvent = async (req, res) => {
       responseTime,
       conversationId,
     });
+
+    // Increment counters on the item itself for quick access
+    if (itemType === "product") {
+      if (eventType === "view") {
+        await Product.findByIdAndUpdate(itemId, { $inc: { views: 1 } });
+      } else if (eventType === "chat_started") {
+        // Assuming products don't have an "inquiries" field yet, but good to add if they do
+        // await Product.findByIdAndUpdate(itemId, { $inc: { inquiries: 1 } });
+      }
+    } else if (itemType === "property") {
+      if (eventType === "view") {
+        await Property.findByIdAndUpdate(itemId, { $inc: { views: 1 } });
+      } else if (eventType === "chat_started") {
+        await Property.findByIdAndUpdate(itemId, { $inc: { inquiries: 1 } });
+      }
+    }
 
     return res.status(201).json({
       message: "Event tracked successfully",
@@ -147,7 +169,10 @@ export const getAnalyticsOverview = async (req, res) => {
     // Calculate conversion rate (chats started / views * 100)
     const conversionRate =
       formattedMetrics.views > 0
-        ? ((formattedMetrics.chatsStarted / formattedMetrics.views) * 100).toFixed(2)
+        ? (
+            (formattedMetrics.chatsStarted / formattedMetrics.views) *
+            100
+          ).toFixed(2)
         : 0;
 
     // Calculate average response time (only for chats)
@@ -191,7 +216,14 @@ export const getAnalyticsOverview = async (req, res) => {
 export const getTimeSeriesData = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { startDate, endDate, itemType, itemId, eventType, groupBy = "day" } = req.query;
+    const {
+      startDate,
+      endDate,
+      itemType,
+      itemId,
+      eventType,
+      groupBy = "day",
+    } = req.query;
 
     // Build date filter
     const dateFilter = {};
@@ -284,10 +316,10 @@ export const getTimeSeriesData = async (req, res) => {
         groupBy === "hour"
           ? `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}-${String(item._id.date.day).padStart(2, "0")} ${String(item._id.date.hour).padStart(2, "0")}:00`
           : groupBy === "week"
-          ? `${item._id.date.year}-W${String(item._id.date.week).padStart(2, "0")}`
-          : groupBy === "month"
-          ? `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}`
-          : `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}-${String(item._id.date.day).padStart(2, "0")}`;
+            ? `${item._id.date.year}-W${String(item._id.date.week).padStart(2, "0")}`
+            : groupBy === "month"
+              ? `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}`
+              : `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}-${String(item._id.date.day).padStart(2, "0")}`;
 
       if (!formattedData[dateKey]) {
         formattedData[dateKey] = {
@@ -327,7 +359,9 @@ export const getTimeSeriesData = async (req, res) => {
       }
     });
 
-    const result = Object.values(formattedData).sort((a, b) => a.date.localeCompare(b.date));
+    const result = Object.values(formattedData).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
 
     return res.status(200).json({
       message: "Time series data retrieved successfully",
@@ -336,7 +370,9 @@ export const getTimeSeriesData = async (req, res) => {
     });
   } catch (error) {
     console.error("getTimeSeriesData error", error);
-    return res.status(500).json({ message: "Failed to retrieve time series data" });
+    return res
+      .status(500)
+      .json({ message: "Failed to retrieve time series data" });
   }
 };
 
@@ -344,7 +380,13 @@ export const getTimeSeriesData = async (req, res) => {
 export const getTopItems = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { startDate, endDate, itemType, limit = 10, metric = "views" } = req.query;
+    const {
+      startDate,
+      endDate,
+      itemType,
+      limit = 10,
+      metric = "views",
+    } = req.query;
 
     // Build date filter
     const dateFilter = {};
@@ -394,9 +436,13 @@ export const getTopItems = async (req, res) => {
       topItems.map(async (item) => {
         let itemDetails = null;
         if (item._id.itemType === "product") {
-          itemDetails = await Product.findById(item._id.itemId).select("name images price rating");
+          itemDetails = await Product.findById(item._id.itemId).select(
+            "name images price rating",
+          );
         } else {
-          itemDetails = await Property.findById(item._id.itemId).select("title images price rating");
+          itemDetails = await Property.findById(item._id.itemId).select(
+            "title images price rating",
+          );
         }
 
         return {
@@ -408,7 +454,7 @@ export const getTopItems = async (req, res) => {
           price: itemDetails?.price || null,
           rating: itemDetails?.rating || null,
         };
-      })
+      }),
     );
 
     return res.status(200).json({
@@ -507,10 +553,10 @@ export const getResponseTimeTrends = async (req, res) => {
         groupBy === "hour"
           ? `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}-${String(item._id.date.day).padStart(2, "0")} ${String(item._id.date.hour).padStart(2, "0")}:00`
           : groupBy === "week"
-          ? `${item._id.date.year}-W${String(item._id.date.week).padStart(2, "0")}`
-          : groupBy === "month"
-          ? `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}`
-          : `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}-${String(item._id.date.day).padStart(2, "0")}`;
+            ? `${item._id.date.year}-W${String(item._id.date.week).padStart(2, "0")}`
+            : groupBy === "month"
+              ? `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}`
+              : `${item._id.date.year}-${String(item._id.date.month).padStart(2, "0")}-${String(item._id.date.day).padStart(2, "0")}`;
 
       return {
         date: dateKey,
@@ -528,7 +574,8 @@ export const getResponseTimeTrends = async (req, res) => {
     });
   } catch (error) {
     console.error("getResponseTimeTrends error", error);
-    return res.status(500).json({ message: "Failed to retrieve response time trends" });
+    return res
+      .status(500)
+      .json({ message: "Failed to retrieve response time trends" });
   }
 };
-

@@ -1,5 +1,7 @@
 import User from "../model/User.js";
 import Policy from "../model/Policy.js";
+import SubscriptionPlan from "../model/SubscriptionPlan.js";
+import UserSubscription from "../model/UserSubscription.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../utils/generateToken.js";
 import { sendOtpEmail } from "../utils/sendEmail.js";
@@ -89,16 +91,15 @@ export const registerUser = async (req, res) => {
 
     // console.log("before sending otp");
 
-    try {
-      await sendOtpEmail({ to: email, otp: plainOtp, name });
-    } catch (mailError) {
-      console.error(
-        "❌ [registerUser] Error sending OTP email:",
-        mailError.message || mailError,
-      );
-      // We don't delete the user here, allow them to resend OTP from the login/verify page
-      // This provides a better user experience than silent failure or account deletion
-    }
+    // try {
+    //   await sendOtpEmail({ to: email, otp: plainOtp, name });
+    // } catch (mailError) {
+    //   console.error(
+    //     "❌ [registerUser] Error sending OTP email:",
+    //     mailError.message || mailError,
+    //   );
+
+    // }
 
     res.status(201).json({
       message: "OTP sent to your email address. Please verify to continue.",
@@ -253,8 +254,63 @@ export const assignRoles = async (req, res) => {
 
     // Update roles
     user.roles = roles;
-
     await user.save();
+
+    // Automatically assign free "Basic" plans for seller roles if they don't have an active subscription
+    try {
+      const sellerRoles = ["ecommerceSeller", "realEstateSeller"];
+      for (const role of roles) {
+        if (sellerRoles.includes(role)) {
+          // Check if user already has an active subscription for this role
+          const existingSub = await UserSubscription.findOne({
+            userId: user._id,
+            role: role,
+            status: "active",
+            endDate: { $gt: new Date() },
+          });
+
+          if (!existingSub) {
+            // Find a free "Basic" plan for this role
+            const basicPlan = await SubscriptionPlan.findOne({
+              name: "Basic",
+              price: 0,
+              isActive: true,
+              $or: [{ targetRole: role }, { targetRole: "both" }],
+            }).sort({ billingPeriod: 1 }); // Prefer monthly if both exist
+
+            if (basicPlan) {
+              const startDate = new Date();
+              const endDate = new Date();
+              endDate.setDate(endDate.getDate() + basicPlan.duration);
+
+              await UserSubscription.create({
+                userId: user._id,
+                planId: basicPlan._id,
+                role: role,
+                startDate,
+                endDate,
+                status: "active",
+                autoRenew: true,
+                usage: {
+                  listingsUsed: 0,
+                  storesUsed: 0,
+                  featuredUsed: 0,
+                },
+              });
+              console.log(
+                `Automatically assigned free Basic plan for ${role} to user ${user._id}`,
+              );
+            }
+          }
+        }
+      }
+    } catch (subError) {
+      console.error(
+        "Failed to automatically assign basic subscription:",
+        subError,
+      );
+      // We don't block the role assignment if subscription fails
+    }
 
     res.json({
       message: "Roles assigned successfully",

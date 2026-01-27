@@ -25,17 +25,22 @@ const productSchema = new mongoose.Schema(
     images: { type: [String], default: [] },
     stock: { type: Number, default: 0, min: 0 },
     sku: { type: String, trim: true },
-    status: { type: String, default: "active", enum: ["active", "inactive", "out_of_stock"] },
+    status: {
+      type: String,
+      default: "active",
+      enum: ["active", "inactive", "out_of_stock"],
+    },
     sales: { type: Number, default: 0 },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     views: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
     likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    isFeatured: { type: Boolean, default: false },
+    featuredUntil: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Product = mongoose.model("Product", productSchema);
 
 export default Product;
-

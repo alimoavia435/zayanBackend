@@ -46,13 +46,17 @@ const userSubscriptionSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
+      storesUsed: {
+        type: Number,
+        default: 0,
+      },
       featuredUsed: {
         type: Number,
         default: 0,
       },
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Compound indexes for efficient queries
@@ -64,13 +68,13 @@ userSubscriptionSchema.index({ endDate: 1, status: 1 }); // For finding expired 
 userSubscriptionSchema.methods.isActive = function () {
   const now = new Date();
   return (
-    this.status === "active" &&
-    this.startDate <= now &&
-    this.endDate >= now
+    this.status === "active" && this.startDate <= now && this.endDate >= now
   );
 };
 
-const UserSubscription = mongoose.model("UserSubscription", userSubscriptionSchema);
+const UserSubscription = mongoose.model(
+  "UserSubscription",
+  userSubscriptionSchema,
+);
 
 export default UserSubscription;
-

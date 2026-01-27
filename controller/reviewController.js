@@ -194,36 +194,18 @@ export const createSellerReview = async (req, res) => {
       });
     }
 
-    // Check if user already reviewed this seller
-    const existingReview = await Review.findOne({
+    // Create new review (allowing multiple reviews)
+    const review = await Review.create({
+      type: "seller",
       seller: sellerId,
       user: buyerId,
+      rating,
+      categories: categories || {},
+      title: title || "",
+      comment: comment || "",
+      verified: true,
+      verifiedByConversation: conversation._id,
     });
-
-    let review;
-    if (existingReview) {
-      // Update existing review
-      existingReview.rating = rating;
-      existingReview.title = title || "";
-      existingReview.comment = comment || "";
-      existingReview.categories = categories || {};
-      existingReview.verified = true;
-      existingReview.verifiedByConversation = conversation._id;
-      review = await existingReview.save();
-    } else {
-      // Create new review
-      review = await Review.create({
-        type: "seller",
-        seller: sellerId,
-        user: buyerId,
-        rating,
-        categories: categories || {},
-        title: title || "",
-        comment: comment || "",
-        verified: true,
-        verifiedByConversation: conversation._id,
-      });
-    }
 
     // Update seller rating
     await updateSellerRating(sellerId);
@@ -275,9 +257,7 @@ export const createSellerReview = async (req, res) => {
     }
 
     return res.status(201).json({
-      message: existingReview
-        ? "Review updated successfully"
-        : "Review created successfully",
+      message: "Review created successfully",
       review: {
         _id: review._id.toString(),
         type: review.type,
@@ -300,11 +280,6 @@ export const createSellerReview = async (req, res) => {
     });
   } catch (error) {
     console.error("createSellerReview error", error);
-    if (error.code === 11000) {
-      return res
-        .status(400)
-        .json({ message: "You have already reviewed this seller" });
-    }
     return res.status(500).json({ message: error.message });
   }
 };

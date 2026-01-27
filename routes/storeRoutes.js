@@ -1,5 +1,5 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, optionalProtect } from "../middleware/authMiddleware.js";
 import {
   createStore,
   getStores,
@@ -16,10 +16,7 @@ import {
 const router = express.Router();
 
 // Seller routes - CRUD operations for stores
-router
-  .route("/")
-  .post(protect, createStore)
-  .get(protect, getStores);
+router.route("/").post(protect, createStore).get(protect, getStores);
 
 router
   .route("/:id")
@@ -28,8 +25,8 @@ router
   .delete(protect, deleteStore);
 
 // Buyer routes - public view of stores
-router.get("/buyer/all", protect, getAllStoresForBuyer);
-router.get("/buyer/:id", protect, getStoreByIdForBuyer);
+router.get("/buyer/all", optionalProtect, getAllStoresForBuyer);
+router.get("/buyer/:id", optionalProtect, getStoreByIdForBuyer);
 
 // Get stores by seller ID
 router.get("/seller/:id", protect, getStoresBySellerId);
@@ -39,4 +36,3 @@ router.post("/buyer/:id/follow", protect, followStore);
 router.post("/buyer/:id/unfollow", protect, unfollowStore);
 
 export default router;
-

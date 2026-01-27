@@ -12,7 +12,7 @@ const reviewSchema = new mongoose.Schema(
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
-      required: function() {
+      required: function () {
         return this.type === "product";
       },
     },
@@ -20,7 +20,7 @@ const reviewSchema = new mongoose.Schema(
     seller: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: function() {
+      required: function () {
         return this.type === "seller";
       },
     },
@@ -92,14 +92,12 @@ const reviewSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-// Ensure one review per user per product (for product reviews)
-reviewSchema.index({ product: 1, user: 1 }, { unique: true, sparse: true });
-
-// Ensure one review per user per seller (for seller reviews)
-reviewSchema.index({ seller: 1, user: 1 }, { unique: true, sparse: true });
+// Indices for type-based queries
+reviewSchema.index({ product: 1, user: 1 }, { sparse: true });
+reviewSchema.index({ seller: 1, user: 1 }, { sparse: true });
 
 // Compound index for type-based queries
 reviewSchema.index({ type: 1, product: 1 });
@@ -109,4 +107,3 @@ reviewSchema.index({ type: 1, user: 1 });
 const Review = mongoose.model("Review", reviewSchema);
 
 export default Review;
-

@@ -31,6 +31,11 @@ const subscriptionPlanSchema = new mongoose.Schema(
         required: true,
         default: 0, // 0 means unlimited
       },
+      maxStores: {
+        type: Number,
+        required: true,
+        default: 1, // Default to 1 store for basic plans
+      },
       featuredListingsCount: {
         type: Number,
         required: true,
@@ -60,13 +65,15 @@ const subscriptionPlanSchema = new mongoose.Schema(
       index: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Compound index for efficient queries
 subscriptionPlanSchema.index({ targetRole: 1, isActive: 1 });
 
-const SubscriptionPlan = mongoose.model("SubscriptionPlan", subscriptionPlanSchema);
+const SubscriptionPlan = mongoose.model(
+  "SubscriptionPlan",
+  subscriptionPlanSchema,
+);
 
 export default SubscriptionPlan;
-

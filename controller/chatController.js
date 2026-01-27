@@ -106,8 +106,8 @@ const normalizeConversation = (conversation, requestUserId) => {
         unit: conversation.productId.unit || "piece",
         store: conversation.productId.store
           ? {
-              name: conversation.productId.store.name || "",
-              location: conversation.productId.store.location || "",
+              name: conversation.productId.store?.name || "",
+              location: conversation.productId.store?.location || "",
             }
           : null,
       }
@@ -117,11 +117,15 @@ const normalizeConversation = (conversation, requestUserId) => {
     id: conversation._id,
     buyer: normalizeUser(
       conversation.buyerId,
-      getProfile(conversation.buyerId, buyerProfileRole, sellerProfileRole),
+      conversation.buyerId
+        ? getProfile(conversation.buyerId, buyerProfileRole, sellerProfileRole)
+        : null,
     ),
     seller: normalizeUser(
       conversation.sellerId,
-      getProfile(conversation.sellerId, sellerProfileRole, buyerProfileRole),
+      conversation.sellerId
+        ? getProfile(conversation.sellerId, sellerProfileRole, buyerProfileRole)
+        : null,
     ),
     property,
     product,

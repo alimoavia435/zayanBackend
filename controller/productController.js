@@ -40,49 +40,11 @@ export const createProduct = async (req, res) => {
     }).populate("planId");
 
     if (subscription) {
-      // Check if subscription is still valid
+      // Check if subscription is still valid (housekeeping only, does not block creation)
       const now = new Date();
       if (subscription.endDate < now) {
         subscription.status = "expired";
         await subscription.save();
-      } else {
-        // Check listing limit (0 means unlimited)
-        if (subscription.planId.features.maxListings > 0) {
-          // Count current active products
-          const currentProductCount = await Product.countDocuments({
-            owner: userId,
-          });
-
-          // Check if adding one more would exceed limit
-          if (currentProductCount >= subscription.planId.features.maxListings) {
-            return res.status(403).json({
-              message: `You have reached your listing limit of ${subscription.planId.features.maxListings} products. Please upgrade your plan to add more listings.`,
-              limit: subscription.planId.features.maxListings,
-              current: currentProductCount,
-            });
-          }
-        }
-      }
-    } else {
-      // No subscription - check if Basic plan exists and allow 1 listing
-      const basicPlan = await SubscriptionPlan.findOne({
-        name: "Basic",
-        targetRole: { $in: ["ecommerceSeller", "both"] },
-        isActive: true,
-      });
-
-      if (basicPlan && basicPlan.features.maxListings > 0) {
-        const currentProductCount = await Product.countDocuments({
-          owner: userId,
-        });
-
-        if (currentProductCount >= basicPlan.features.maxListings) {
-          return res.status(403).json({
-            message: `You have reached the free listing limit of ${basicPlan.features.maxListings} products. Please subscribe to a plan to add more listings.`,
-            limit: basicPlan.features.maxListings,
-            current: currentProductCount,
-          });
-        }
       }
     }
 
@@ -201,10 +163,6 @@ export const getProductById = async (req, res) => {
 // Get product by id for buyer (public view - any active product)
 export const getProductByIdForBuyer = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const { id } = req.params;
 
     // Find any active product (buyers can view any active product)
@@ -480,10 +438,6 @@ export const getProductsByStoreId = async (req, res) => {
 // Get all products for buyers (public view - all active products)
 export const getAllProductsForBuyer = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const {
       searchTerm,
       category,
@@ -507,8 +461,8 @@ export const getAllProductsForBuyer = async (req, res) => {
       filter.store = store;
     }
 
-    // Build sort object
-    const sort = {};
+    // Build sort object - always prioritize featured listings first
+    const sort = { isFeatured: -1 };
     sort[sortBy] = order === "asc" ? 1 : -1;
 
     // Find products
@@ -648,31 +602,15 @@ export const createProductReview = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Check if user already reviewed this product
-    const existingReview = await Review.findOne({
+    // Create new review with type 'product' (allowing multiple reviews)
+    const review = await Review.create({
+      type: "product",
       product: id,
       user: req.user._id,
+      rating,
+      title: title || "",
+      comment: comment || "",
     });
-
-    let review;
-    if (existingReview) {
-      // Update existing review
-      existingReview.type = "product"; // Ensure type is set for backward compatibility
-      existingReview.rating = rating;
-      existingReview.title = title || "";
-      existingReview.comment = comment || "";
-      review = await existingReview.save();
-    } else {
-      // Create new review with type 'product' for backward compatibility
-      review = await Review.create({
-        type: "product",
-        product: id,
-        user: req.user._id,
-        rating,
-        title: title || "",
-        comment: comment || "",
-      });
-    }
 
     // Update product rating
     await updateProductRating(id);
@@ -702,9 +640,7 @@ export const createProductReview = async (req, res) => {
     }
 
     return res.status(201).json({
-      message: existingReview
-        ? "Review updated successfully"
-        : "Review created successfully",
+      message: "Review created successfully",
       review: {
         _id: review._id.toString(),
         product: review.product.toString(),
@@ -723,11 +659,6 @@ export const createProductReview = async (req, res) => {
     });
   } catch (error) {
     console.error("createProductReview error", error);
-    if (error.code === 11000) {
-      return res
-        .status(400)
-        .json({ message: "You have already reviewed this product" });
-    }
     return res.status(500).json({ message: error.message });
   }
 };
@@ -735,10 +666,6 @@ export const createProductReview = async (req, res) => {
 // Get reviews for a product
 export const getProductReviews = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const { id } = req.params;
 
     // Check if product exists

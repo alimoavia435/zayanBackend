@@ -4,26 +4,36 @@ const analyticsEventSchema = new mongoose.Schema(
   {
     eventType: {
       type: String,
-      enum: ["view", "click", "chat_started", "message_sent", "message_received", "subscription_purchased", "subscription_expired", "listing_featured", "listing_boosted"],
+      enum: [
+        "view",
+        "click",
+        "chat_started",
+        "message_sent",
+        "message_received",
+        "subscription_purchased",
+        "subscription_expired",
+        "listing_featured",
+        "listing_boosted",
+      ],
       required: true,
       index: true,
     },
     itemType: {
       type: String,
       enum: ["product", "property"],
-      required: true,
+      required: false,
       index: true,
     },
     itemId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
+      required: false,
       index: true,
       refPath: "itemModel",
     },
     itemModel: {
       type: String,
       enum: ["Product", "Property"],
-      required: true,
+      required: false,
     },
     ownerId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -57,12 +67,17 @@ const analyticsEventSchema = new mongoose.Schema(
       index: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Compound indexes for efficient queries
 analyticsEventSchema.index({ ownerId: 1, eventType: 1, createdAt: -1 });
-analyticsEventSchema.index({ itemId: 1, itemType: 1, eventType: 1, createdAt: -1 });
+analyticsEventSchema.index({
+  itemId: 1,
+  itemType: 1,
+  eventType: 1,
+  createdAt: -1,
+});
 analyticsEventSchema.index({ createdAt: -1 });
 analyticsEventSchema.index({ ownerId: 1, itemId: 1, eventType: 1 });
 
@@ -72,4 +87,3 @@ analyticsEventSchema.index({ ownerId: 1, itemId: 1, eventType: 1 });
 const AnalyticsEvent = mongoose.model("AnalyticsEvent", analyticsEventSchema);
 
 export default AnalyticsEvent;
-

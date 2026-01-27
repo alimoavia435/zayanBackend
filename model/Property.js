@@ -29,11 +29,12 @@ const propertySchema = new mongoose.Schema(
     status: { type: String, default: "active" },
     views: { type: Number, default: 0 },
     inquiries: { type: Number, default: 0 },
+    isFeatured: { type: Boolean, default: false },
+    featuredUntil: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Property = mongoose.model("Property", propertySchema);
 
 export default Property;
-

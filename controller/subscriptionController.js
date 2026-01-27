@@ -53,19 +53,26 @@ export const subscribe = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const roleKey = role === "ecommerceSeller" ? "ecommerceSeller" : "realEstateSeller";
+    const roleKey =
+      role === "ecommerceSeller" ? "ecommerceSeller" : "realEstateSeller";
     if (!user.roles.includes(roleKey)) {
-      return res.status(403).json({ message: "You don't have the required role" });
+      return res
+        .status(403)
+        .json({ message: "You don't have the required role" });
     }
 
     // Check if user is verified
     if (user.verificationStatus !== "approved") {
-      return res.status(403).json({ message: "Only verified sellers can purchase subscriptions" });
+      return res
+        .status(403)
+        .json({ message: "Only verified sellers can purchase subscriptions" });
     }
 
     // Check if user is suspended or banned
     if (user.accountStatus !== "active") {
-      return res.status(403).json({ message: "Suspended or banned users cannot subscribe" });
+      return res
+        .status(403)
+        .json({ message: "Suspended or banned users cannot subscribe" });
     }
 
     // Check if role is disabled
@@ -85,15 +92,17 @@ export const subscribe = async (req, res) => {
 
     // Check if plan is available for this role
     if (plan.targetRole !== "both" && plan.targetRole !== role) {
-      return res.status(400).json({ message: "Plan is not available for this role" });
+      return res
+        .status(400)
+        .json({ message: "Plan is not available for this role" });
     }
 
     // IMPORTANT: Only activate free plans immediately
     // Paid plans must go through payment flow and webhook confirmation
     if (plan.price > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Paid plans require payment. Please use the payment flow.",
-        requiresPayment: true 
+        requiresPayment: true,
       });
     }
 
@@ -108,7 +117,7 @@ export const subscribe = async (req, res) => {
         $set: {
           status: "cancelled",
         },
-      }
+      },
     );
 
     // Calculate dates
@@ -160,9 +169,10 @@ export const subscribe = async (req, res) => {
         type: "subscription_activated",
         title: "Subscription Activated",
         message: `Your ${plan.name} subscription for ${role} has been activated!`,
-        actionUrl: role === "ecommerceSeller" 
-          ? "/ecommerce/seller/subscription"
-          : "/real-estate/seller/subscription",
+        actionUrl:
+          role === "ecommerceSeller"
+            ? "/ecommerce/seller/subscription"
+            : "/real-estate/seller/subscription",
         metadata: {
           planId: plan._id.toString(),
           planName: plan.name,
@@ -274,6 +284,17 @@ export const cancelSubscription = async (req, res) => {
       return res.status(404).json({ message: "No active subscription found" });
     }
 
+    // Don't allow cancelling free "Basic" plans
+    if (
+      subscription.planId.name === "Basic" &&
+      subscription.planId.price === 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Free Basic plans cannot be cancelled. They will expire automatically if not used.",
+      });
+    }
+
     subscription.status = "cancelled";
     subscription.autoRenew = false;
     await subscription.save();
@@ -287,7 +308,6 @@ export const cancelSubscription = async (req, res) => {
     return res.status(500).json({ message: "Failed to cancel subscription" });
   }
 };
-
 // Feature a listing
 export const featureListing = async (req, res) => {
   try {
@@ -295,11 +315,14 @@ export const featureListing = async (req, res) => {
     const { itemId, itemType, duration = 7 } = req.body; // duration in days
 
     if (!itemId || !itemType || !["product", "property"].includes(itemType)) {
-      return res.status(400).json({ message: "itemId and valid itemType are required" });
+      return res
+        .status(400)
+        .json({ message: "itemId and valid itemType are required" });
     }
 
     // Determine role based on item type
-    const role = itemType === "product" ? "ecommerceSeller" : "realEstateSeller";
+    const role =
+      itemType === "product" ? "ecommerceSeller" : "realEstateSeller";
 
     // Check if user has active subscription
     const subscription = await UserSubscription.findOne({
@@ -309,7 +332,9 @@ export const featureListing = async (req, res) => {
     }).populate("planId");
 
     if (!subscription) {
-      return res.status(403).json({ message: "Active subscription required to feature listings" });
+      return res
+        .status(403)
+        .json({ message: "Active subscription required to feature listings" });
     }
 
     // Check if subscription is still valid
@@ -322,22 +347,24 @@ export const featureListing = async (req, res) => {
 
     // Check if user has remaining featured listings
     const plan = subscription.planId;
-    if (plan.features.featuredListingsCount > 0) {
-      const featuredCount = await FeaturedListing.countDocuments({
-        sellerId: userId,
-        itemType,
-        endDate: { $gte: now },
-      });
+    const maxFeatured = plan.features.featuredListingsCount || 0;
 
-      if (featuredCount >= plan.features.featuredListingsCount) {
-        return res.status(403).json({
-          message: `You have reached your limit of ${plan.features.featuredListingsCount} featured listings`,
-        });
-      }
+    if (
+      maxFeatured > 0 &&
+      (subscription.usage.featuredUsed || 0) >= maxFeatured
+    ) {
+      return res.status(403).json({
+        message: `You have used all ${maxFeatured} featured listing slots for your plan.`,
+      });
+    } else if (maxFeatured === 0 && plan.name === "Basic") {
+      return res.status(403).json({
+        message:
+          "Your plan does not support featured listings. Please upgrade to Pro or Premium.",
+      });
     }
 
-    // Verify item exists and belongs to user
-    let item = null;
+    // Find the item
+    let item;
     if (itemType === "product") {
       item = await Product.findOne({ _id: itemId, owner: userId });
     } else {
@@ -345,38 +372,28 @@ export const featureListing = async (req, res) => {
     }
 
     if (!item) {
-      return res.status(404).json({ message: "Item not found or you don't own it" });
+      return res
+        .status(404)
+        .json({ message: "Listing not found or you don't have permission" });
     }
 
-    // Check if item is already featured
-    const existingFeatured = await FeaturedListing.findOne({
-      itemId,
-      itemType,
-      endDate: { $gte: now },
-    });
-
-    if (existingFeatured) {
-      return res.status(400).json({ message: "This listing is already featured" });
+    if (item.isFeatured && item.featuredUntil > now) {
+      return res
+        .status(400)
+        .json({ message: "This listing is already featured" });
     }
 
-    // Create featured listing
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + duration);
+    // Set featured status
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() + duration);
 
-    const featuredListing = await FeaturedListing.create({
-      itemType,
-      itemId,
-      itemModel: itemType === "product" ? "Product" : "Property",
-      sellerId: userId,
-      startDate,
-      endDate,
-      priorityScore: 10,
-      isBoosted: false,
-    });
+    item.isFeatured = true;
+    item.featuredUntil = expirationDate;
+    await item.save();
 
-    // Update usage
-    subscription.usage.featuredUsed += 1;
+    // Update subscription usage
+    subscription.usage.featuredUsed =
+      (subscription.usage.featuredUsed || 0) + 1;
     await subscription.save();
 
     // Track analytics
@@ -387,16 +404,15 @@ export const featureListing = async (req, res) => {
         itemId,
         itemModel: itemType === "product" ? "Product" : "Property",
         ownerId: userId,
-        userId: userId,
+        userId,
         metadata: {
-          planId: plan._id.toString(),
-          planName: plan.name,
-          role,
           duration,
+          featuredUntil: expirationDate.toISOString(),
+          planName: plan.name,
         },
       });
     } catch (analyticsError) {
-      console.error("Failed to track featured listing analytics:", analyticsError);
+      console.error("Failed to track feature analytics:", analyticsError);
     }
 
     // Send notification
@@ -407,9 +423,10 @@ export const featureListing = async (req, res) => {
         type: "listing_featured_approved",
         title: "Listing Featured",
         message: `Your ${itemType} has been featured and will be highlighted in search results!`,
-        actionUrl: itemType === "product"
-          ? `/ecommerce/buyer/products/${itemId}`
-          : `/real-estate/buyer/properties/${itemId}`,
+        actionUrl:
+          itemType === "product"
+            ? `/ecommerce/buyer/products/${itemId}`
+            : `/real-estate/buyer/properties/${itemId}`,
         metadata: {
           itemId: itemId.toString(),
           itemType,
@@ -418,12 +435,15 @@ export const featureListing = async (req, res) => {
         io,
       });
     } catch (notifError) {
-      console.error("Failed to send featured listing notification:", notifError);
+      console.error(
+        "Failed to send featured listing notification:",
+        notifError,
+      );
     }
 
-    return res.status(201).json({
-      message: "Listing featured successfully",
-      featuredListing,
+    return res.status(200).json({
+      message: `${itemType === "product" ? "Product" : "Property"} featured successfully until ${expirationDate.toLocaleDateString()}`,
+      item,
     });
   } catch (error) {
     console.error("featureListing error", error);
@@ -438,11 +458,14 @@ export const boostListing = async (req, res) => {
     const { itemId, itemType, duration = 7 } = req.body; // duration in days
 
     if (!itemId || !itemType || !["product", "property"].includes(itemType)) {
-      return res.status(400).json({ message: "itemId and valid itemType are required" });
+      return res
+        .status(400)
+        .json({ message: "itemId and valid itemType are required" });
     }
 
     // Determine role based on item type
-    const role = itemType === "product" ? "ecommerceSeller" : "realEstateSeller";
+    const role =
+      itemType === "product" ? "ecommerceSeller" : "realEstateSeller";
 
     // Check if user has active subscription with boosted visibility
     const subscription = await UserSubscription.findOne({
@@ -452,7 +475,9 @@ export const boostListing = async (req, res) => {
     }).populate("planId");
 
     if (!subscription) {
-      return res.status(403).json({ message: "Active subscription required to boost listings" });
+      return res
+        .status(403)
+        .json({ message: "Active subscription required to boost listings" });
     }
 
     // Check if subscription is still valid
@@ -466,7 +491,9 @@ export const boostListing = async (req, res) => {
     // Check if plan supports boosted visibility
     const plan = subscription.planId;
     if (!plan.features.boostedVisibility) {
-      return res.status(403).json({ message: "Your plan does not support boosted visibility" });
+      return res
+        .status(403)
+        .json({ message: "Your plan does not support boosted visibility" });
     }
 
     // Verify item exists and belongs to user
@@ -478,7 +505,9 @@ export const boostListing = async (req, res) => {
     }
 
     if (!item) {
-      return res.status(404).json({ message: "Item not found or you don't own it" });
+      return res
+        .status(404)
+        .json({ message: "Item not found or you don't own it" });
     }
 
     // Check if already boosted or featured
@@ -535,7 +564,10 @@ export const boostListing = async (req, res) => {
         },
       });
     } catch (analyticsError) {
-      console.error("Failed to track boosted listing analytics:", analyticsError);
+      console.error(
+        "Failed to track boosted listing analytics:",
+        analyticsError,
+      );
     }
 
     return res.status(201).json({
@@ -547,4 +579,3 @@ export const boostListing = async (req, res) => {
     return res.status(500).json({ message: "Failed to boost listing" });
   }
 };
-

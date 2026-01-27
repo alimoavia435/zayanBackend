@@ -54,7 +54,9 @@ export const createProperty = async (req, res) => {
           });
 
           // Check if adding one more would exceed limit
-          if (currentPropertyCount >= subscription.planId.features.maxListings) {
+          if (
+            currentPropertyCount >= subscription.planId.features.maxListings
+          ) {
             return res.status(403).json({
               message: `You have reached your listing limit of ${subscription.planId.features.maxListings} properties. Please upgrade your plan to add more listings.`,
               limit: subscription.planId.features.maxListings,
@@ -64,25 +66,18 @@ export const createProperty = async (req, res) => {
         }
       }
     } else {
-      // No subscription - check if Basic plan exists and allow 1 listing
-      const basicPlan = await SubscriptionPlan.findOne({
-        name: "Basic",
-        targetRole: { $in: ["realEstateSeller", "both"] },
-        isActive: true,
+      // If no subscription found, still allow a basic 1 listing fallback just in case
+      const currentPropertyCount = await Property.countDocuments({
+        owner: userId,
       });
 
-      if (basicPlan && basicPlan.features.maxListings > 0) {
-        const currentPropertyCount = await Property.countDocuments({
-          owner: userId,
+      if (currentPropertyCount >= 1) {
+        return res.status(403).json({
+          message:
+            "You have reached your free listing limit. Please subscribe to a plan to add more listings.",
+          limit: 1,
+          current: currentPropertyCount,
         });
-
-        if (currentPropertyCount >= basicPlan.features.maxListings) {
-          return res.status(403).json({
-            message: `You have reached the free listing limit of ${basicPlan.features.maxListings} properties. Please subscribe to a plan to add more listings.`,
-            limit: basicPlan.features.maxListings,
-            current: currentPropertyCount,
-          });
-        }
       }
     }
 
@@ -313,14 +308,12 @@ export const getAllPropertiesForBuyer = async (req, res) => {
       filter.baths = { $gte: Number(baths) };
     }
 
-    // Build sort object
-    const sort = {};
+    // Build sort object - always prioritize featured listings first
+    const sort = { isFeatured: -1 };
     sort[sortBy] = order === "asc" ? 1 : -1;
 
     // Find properties (without populating owner yet)
-    let properties = await Property.find(filter)
-      .sort(sort)
-      .lean();
+    let properties = await Property.find(filter).sort(sort).lean();
 
     // Apply search term filter (searches in title, description, location)
     if (searchTerm) {
@@ -331,7 +324,7 @@ export const getAllPropertiesForBuyer = async (req, res) => {
           searchRegex.test(property.description) ||
           searchRegex.test(property.location) ||
           searchRegex.test(property.city) ||
-          searchRegex.test(property.state)
+          searchRegex.test(property.state),
       );
     }
 
@@ -341,7 +334,7 @@ export const getAllPropertiesForBuyer = async (req, res) => {
         // Get seller profile using buildProfileResponse with realestate_seller role
         const sellerProfile = await buildProfileResponse(
           property.owner?.toString() || property.owner,
-          "realestate_seller"
+          "realestate_seller",
         );
 
         // Use seller profile data, fallback to owner basic data if profile not found
@@ -392,7 +385,7 @@ export const getAllPropertiesForBuyer = async (req, res) => {
           createdAt: property.createdAt,
           updatedAt: property.updatedAt,
         };
-      })
+      }),
     );
 
     return res.json({
@@ -416,8 +409,7 @@ export const getPropertyByIdForBuyer = async (req, res) => {
     const property = await Property.findOne({
       _id: id,
       status: "active",
-    })
-      .lean();
+    }).lean();
 
     if (!property) {
       return res.status(404).json({ message: "Property not found" });
@@ -429,7 +421,7 @@ export const getPropertyByIdForBuyer = async (req, res) => {
     // Get seller profile using buildProfileResponse with realestate_seller role
     const sellerProfile = await buildProfileResponse(
       property.owner?.toString() || property.owner,
-      "realestate_seller"
+      "realestate_seller",
     );
 
     // Use seller profile data, fallback to basic data if profile not found
