@@ -99,7 +99,6 @@ export const createPaymentIntent = async (req, res) => {
         enabled: true,
       },
     });
-    // console.log(paymentIntent,"paymentIntent checking here");
 
     // Save payment record with pending status
     await Payment.create({
