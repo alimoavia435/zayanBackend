@@ -16,6 +16,7 @@ export const createNotification = async ({
   io = null, // Socket.io instance
 }) => {
   try {
+    console.log("checking notification controller");
     // Create notification
     const notification = await Notification.create({
       userId,
@@ -33,7 +34,7 @@ export const createNotification = async ({
     if (!user) {
       return notification;
     }
-
+    console.log("user found sending notification");
     // Send real-time notification via Socket.io
     if (io) {
       io.to(userId.toString()).emit("new_notification", {
@@ -48,7 +49,7 @@ export const createNotification = async ({
         },
       });
     }
-
+    console.log("notification sent successfully");
     // Send email notification (fallback)
     // if (sendEmail && user.email) {
     //   try {
