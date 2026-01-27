@@ -33,20 +33,35 @@ export const sendEmail = async ({
 }) => {
   const msg = {
     to,
-    from, // Change to your verified sender
+    from,
     subject,
-    text: text || "",
-    html: html || text,
   };
+
+  if (text && text.trim().length > 0) {
+    msg.text = text;
+  }
+
+  if (html && html.trim().length > 0) {
+    msg.html = html;
+  } else if (text && text.trim().length > 0) {
+    // Fallback to text if html is empty
+    msg.html = text;
+  }
+
+  if (!msg.text && !msg.html) {
+    console.error("❌ Cannot send email: No content (text or html) provided");
+    throw new Error(
+      "Email content (text or html) must be at least one character in length.",
+    );
+  }
 
   try {
     const response = await sgMail.send(msg);
-    // console.log(`✅ Email sent to ${to}`);
     return response;
   } catch (error) {
     console.error("❌ Error sending email via SendGrid:", error);
     if (error.response) {
-      console.error(error.response.body);
+      console.error(JSON.stringify(error.response.body, null, 2));
     }
     throw error;
   }
