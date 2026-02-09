@@ -24,7 +24,8 @@ export const createStore = async (req, res) => {
     const finalBannerImage =
       bannerImage && bannerImage.trim() !== "" ? bannerImage : "🏪";
 
-    // Check subscription limits for ecommerceSeller role
+    // Ecommerce: store count is not enforced as the primary limit (product count is).
+    // Subscription is still loaded for housekeeping and optional usage tracking.
     const userId = req.user._id;
     const subscription = await UserSubscription.findOne({
       userId,
@@ -33,47 +34,13 @@ export const createStore = async (req, res) => {
     }).populate("planId");
 
     if (subscription) {
-      // Check if subscription is still valid
       const now = new Date();
       if (subscription.endDate < now) {
         subscription.status = "expired";
         await subscription.save();
-        return res.status(403).json({
-          message:
-            "Your subscription has expired. Please renew to create more stores.",
-        });
-      } else {
-        // Check store limit
-        const maxStores = subscription.planId.features.maxStores || 1;
-        const currentStoreCount = await Store.countDocuments({ owner: userId });
-
-        if (currentStoreCount >= maxStores) {
-          return res.status(403).json({
-            message: `You have reached your store limit of ${maxStores} store(s). Please upgrade your plan to create more stores.`,
-            limit: maxStores,
-            current: currentStoreCount,
-          });
-        }
-      }
-    } else {
-      // Fallback: check for a free Basic plan to allow 1 store
-      const basicPlan = await SubscriptionPlan.findOne({
-        name: "Basic",
-        targetRole: { $in: ["ecommerceSeller", "both"] },
-        isActive: true,
-      });
-
-      const currentStoreCount = await Store.countDocuments({ owner: userId });
-      const limit = basicPlan?.features?.maxStores || 1;
-
-      if (currentStoreCount >= limit) {
-        return res.status(403).json({
-          message: `You have reached the free store limit of ${limit} store(s). Please subscribe to a plan to create more stores.`,
-          limit: limit,
-          current: currentStoreCount,
-        });
       }
     }
+    // No 403 based on store count — upgrade messaging focuses on product limits.
 
     const store = await Store.create({
       owner: req.user._id,

@@ -6,6 +6,10 @@ import UserSubscription from "../model/UserSubscription.js";
 import SubscriptionPlan from "../model/SubscriptionPlan.js";
 import { buildProfileResponse } from "./profileController.js";
 
+// Fallback when no Basic plan exists or features.maxListings is missing.
+// Admin should create exactly one active Basic plan (targetRole ecommerceSeller or both) with explicit features.maxListings.
+const BASIC_PLAN_FALLBACK_MAX_PRODUCTS = 1;
+
 export const createProduct = async (req, res) => {
   try {
     const {
@@ -31,20 +35,54 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    // Check subscription limits for ecommerceSeller role
     const userId = req.user._id;
-    const subscription = await UserSubscription.findOne({
+    const now = new Date();
+
+    // Subscription: ecommerce sellers are limited by PRODUCT count (plan.features.maxListings = max PRODUCTS).
+    // Every seller is treated as having at least a Free Basic plan when no UserSubscription exists.
+    let subscription = await UserSubscription.findOne({
       userId,
       role: "ecommerceSeller",
       status: "active",
     }).populate("planId");
 
+    let maxProducts;
     if (subscription) {
-      // Check if subscription is still valid (housekeeping only, does not block creation)
-      const now = new Date();
       if (subscription.endDate < now) {
         subscription.status = "expired";
         await subscription.save();
+        subscription = null; // Treat as no active subscription below
+        // We do NOT create analytics/notifications here — getMySubscription and subscriptionExpirationService handle expiration tracking to avoid duplicates.
+      } else {
+        maxProducts = subscription.planId.features.maxListings ?? 0; // 0 = unlimited
+      }
+    }
+
+    if (!subscription) {
+      // Fallback: Basic plan limits. Admin should define exactly one active Basic plan with explicit features.maxListings.
+      const basicPlan = await SubscriptionPlan.findOne({
+        name: "Basic",
+        targetRole: { $in: ["ecommerceSeller", "both"] },
+        isActive: true,
+      });
+      const explicitMax = basicPlan?.features?.maxListings;
+      if (explicitMax === undefined || explicitMax === null) {
+        console.warn(
+          "[subscription] Basic plan missing or features.maxListings not set; using fallback",
+          basicPlan ? { planId: basicPlan._id } : "no Basic plan found",
+        );
+      }
+      maxProducts = explicitMax ?? BASIC_PLAN_FALLBACK_MAX_PRODUCTS;
+    }
+
+    if (maxProducts > 0) {
+      const currentProductCount = await Product.countDocuments({ owner: userId });
+      if (currentProductCount >= maxProducts) {
+        return res.status(403).json({
+          message: `You have reached your product limit of ${maxProducts}. Please upgrade your plan to add more products.`,
+          limit: maxProducts,
+          current: currentProductCount,
+        });
       }
     }
 
@@ -80,9 +118,9 @@ export const createProduct = async (req, res) => {
       $inc: { products: 1 },
     });
 
-    // Update subscription usage if subscription exists
+    // Update subscription usage only when user has an active subscription (listingsUsed = products for ecommerce)
     if (subscription && subscription.status === "active") {
-      subscription.usage.listingsUsed += 1;
+      subscription.usage.listingsUsed = (subscription.usage.listingsUsed || 0) + 1;
       await subscription.save();
     }
 
@@ -96,7 +134,8 @@ export const createProduct = async (req, res) => {
   }
 };
 
-// Get all products of the authenticated user
+// Get all products of the authenticated user.
+// When no store/category query: filter = { owner } only — same scope as Product.countDocuments({ owner }) used for subscription limit. Frontend uses this for product-limit UX.
 export const getProducts = async (req, res) => {
   try {
     if (!req.user?._id) {
@@ -105,14 +144,9 @@ export const getProducts = async (req, res) => {
 
     const { store, category } = req.query;
 
-    // Build filter
     const filter = { owner: req.user._id };
-    if (store) {
-      filter.store = store;
-    }
-    if (category) {
-      filter.category = category;
-    }
+    if (store) filter.store = store;
+    if (category) filter.category = category;
 
     const products = await Product.find(filter)
       .populate("store", "name")
@@ -121,7 +155,7 @@ export const getProducts = async (req, res) => {
 
     return res.json({
       message: "Products fetched successfully",
-      count: products.length,
+      count: products.length, // Total matching count; when no store/category this equals full owner product count for subscription checks
       products,
     });
   } catch (error) {

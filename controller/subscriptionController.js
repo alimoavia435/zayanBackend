@@ -173,6 +173,7 @@ export const subscribe = async (req, res) => {
           role === "ecommerceSeller"
             ? "/ecommerce/seller/subscription"
             : "/real-estate/seller/subscription",
+        channel: role === "ecommerceSeller" ? "ecommerce" : "real-estate",
         metadata: {
           planId: plan._id.toString(),
           planName: plan.name,
@@ -223,13 +224,13 @@ export const getMySubscription = async (req, res) => {
       });
     }
 
-    // Check if subscription is still valid
+    // Check if subscription is still valid. Marking expired here is idempotent with subscriptionExpirationService (whoever runs first wins; the other won't find status "active").
     const now = new Date();
     if (subscription.endDate < now) {
       subscription.status = "expired";
       await subscription.save();
 
-      // Track expiration
+      // Track expiration (only once per subscription; cron may have already marked it, so we only create if we're the one who marked it)
       try {
         await AnalyticsEvent.create({
           eventType: "subscription_expired",
@@ -427,6 +428,7 @@ export const featureListing = async (req, res) => {
           itemType === "product"
             ? `/ecommerce/buyer/products/${itemId}`
             : `/real-estate/buyer/properties/${itemId}`,
+        channel: itemType === "product" ? "ecommerce" : "real-estate",
         metadata: {
           itemId: itemId.toString(),
           itemType,

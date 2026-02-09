@@ -241,7 +241,7 @@ export const adminSendSupportMessage = async (req, res) => {
         type: "support_message",
         title: "Support Response",
         message: "You have a new message from support",
-        link: `/messages/${conversationId}`,
+        actionUrl: `/messages/${conversationId}`,
       });
     } catch (notifError) {
       console.error("Failed to create notification:", notifError);

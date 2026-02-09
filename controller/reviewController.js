@@ -228,6 +228,7 @@ export const createSellerReview = async (req, res) => {
         actionUrl: propertyId
           ? `/real-estate/seller/dashboard`
           : `/ecommerce/seller/dashboard`,
+        channel: propertyId ? "real-estate" : "ecommerce",
         metadata: {
           reviewId: review._id.toString(),
           rating,
@@ -495,10 +496,10 @@ export const addSellerResponse = async (req, res) => {
         type: "review_response",
         title: "Seller Responded to Your Review",
         message: `${sellerName} has replied to your review: "${response.trim()}"`,
-        // Route to the store or seller profile
         actionUrl: review.product
           ? `/ecommerce/buyer/stores/${review.seller}`
           : `/real-estate/buyer/seller-profile/${review.seller}`,
+        channel,
         metadata: {
           reviewId: review._id.toString(),
           sellerId: req.user._id.toString(),

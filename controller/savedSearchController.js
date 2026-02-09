@@ -216,6 +216,7 @@ export const checkSavedSearchAlerts = async (searchId = null) => {
             title: "New Matches for Your Saved Search",
             message: `We found ${newItems.length} new ${search.itemType}${newItems.length > 1 ? "s" : ""} matching "${search.name}"`,
             actionUrl: `/saved-searches/${search._id}`,
+            channel: search.itemType === "product" ? "ecommerce" : "real-estate",
             metadata: {
               searchId: search._id.toString(),
               itemType: search.itemType,

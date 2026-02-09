@@ -3,6 +3,7 @@ import User from "../model/User.js";
 import { sendNotificationEmail } from "../utils/notificationEmailTemplates.js";
 
 // Create a notification (internal use - called by other controllers)
+// channel: "ecommerce" | "real-estate" so notifications can be filtered per app
 export const createNotification = async ({
   userId,
   type,
@@ -12,6 +13,7 @@ export const createNotification = async ({
   metadata = {},
   relatedId = null,
   relatedType = null,
+  channel = null, // "ecommerce" | "real-estate" for contextual filtering
   sendEmail = true,
   io = null, // Socket.io instance
 }) => {
@@ -27,6 +29,7 @@ export const createNotification = async ({
       metadata,
       relatedId,
       relatedType,
+      channel,
     });
 
     // Get user for email
@@ -85,14 +88,18 @@ export const createNotification = async ({
 };
 
 // Get user notifications
+// Optional query: channel=ecommerce | real-estate — show only that app's notifications (or null = both)
 export const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { limit = 50, skip = 0, read = null } = req.query;
+    const { limit = 50, skip = 0, read = null, channel = null } = req.query;
 
     const filter = { userId };
     if (read !== null) {
       filter.read = read === "true";
+    }
+    if (channel === "ecommerce" || channel === "real-estate") {
+      filter.$or = [{ channel }, { channel: null }];
     }
 
     const notifications = await Notification.find(filter)
@@ -100,10 +107,11 @@ export const getUserNotifications = async (req, res) => {
       .limit(parseInt(limit))
       .skip(parseInt(skip));
 
-    const unreadCount = await Notification.countDocuments({
-      userId,
-      read: false,
-    });
+    const countFilter = { userId, read: false };
+    if (channel === "ecommerce" || channel === "real-estate") {
+      countFilter.$or = [{ channel }, { channel: null }];
+    }
+    const unreadCount = await Notification.countDocuments(countFilter);
 
     return res.status(200).json({
       message: "Notifications retrieved successfully",
@@ -202,14 +210,18 @@ export const deleteNotification = async (req, res) => {
 };
 
 // Get unread count
+// Optional query: channel=ecommerce | real-estate
 export const getUnreadCount = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { channel = null } = req.query;
 
-    const unreadCount = await Notification.countDocuments({
-      userId,
-      read: false,
-    });
+    const filter = { userId, read: false };
+    if (channel === "ecommerce" || channel === "real-estate") {
+      filter.$or = [{ channel }, { channel: null }];
+    }
+
+    const unreadCount = await Notification.countDocuments(filter);
 
     return res.status(200).json({
       message: "Unread count retrieved successfully",

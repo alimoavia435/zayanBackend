@@ -13,6 +13,7 @@ const notificationSchema = new mongoose.Schema(
       enum: [
         "new_message",
         "new_review",
+        "review_response",
         "listing_inquiry",
         "order_placed",
         "verification_approved",
@@ -21,6 +22,7 @@ const notificationSchema = new mongoose.Schema(
         "subscription_expiring",
         "listing_featured_approved",
         "listing_featured_expired",
+        "support_message",
       ],
       required: true,
       index: true,
@@ -62,6 +64,13 @@ const notificationSchema = new mongoose.Schema(
       enum: ["conversation", "review", "product", "property", "order", "verification"],
       default: null,
     },
+    // Filter notifications by app context: ecommerce vs real-estate
+    channel: {
+      type: String,
+      enum: ["ecommerce", "real-estate"],
+      default: null,
+      index: true,
+    },
     emailSent: {
       type: Boolean,
       default: false,
@@ -77,6 +86,7 @@ const notificationSchema = new mongoose.Schema(
 // Compound index for efficient queries
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, type: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, channel: 1, read: 1, createdAt: -1 });
 
 // TTL index to automatically delete notifications older than 90 days (optional)
 // notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7776000 }); // 90 days

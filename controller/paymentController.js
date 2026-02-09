@@ -300,6 +300,7 @@ async function handlePaymentSuccess(paymentIntent, app) {
           role === "ecommerceSeller"
             ? "/ecommerce/seller/subscription"
             : "/real-estate/seller/subscription",
+        channel: role === "ecommerceSeller" ? "ecommerce" : "real-estate",
         metadata: {
           planId: plan._id.toString(),
           planName: plan.name,

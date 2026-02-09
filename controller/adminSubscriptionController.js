@@ -53,7 +53,7 @@ export const createPlan = async (req, res) => {
       return res.status(400).json({ message: "Invalid targetRole" });
     }
 
-    // Set default features for Basic plan
+    // Set default features for Basic plan. For ecommerce, maxListings = max products; recommend explicitly setting it in admin so product-controller fallback is not used.
     const defaultFeatures = name === "Basic" ? {
       maxListings: features?.maxListings ?? 1,
       featuredListingsCount: features?.featuredListingsCount ?? 0,
@@ -317,6 +317,7 @@ export const updateUserSubscription = async (req, res) => {
           actionUrl: subscription.role === "ecommerceSeller"
             ? "/ecommerce/seller/subscription"
             : "/real-estate/seller/subscription",
+          channel: subscription.role === "ecommerceSeller" ? "ecommerce" : "real-estate",
           sendEmail: true,
           io,
         });

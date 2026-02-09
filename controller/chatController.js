@@ -514,6 +514,7 @@ export const sendMessage = async (req, res) => {
             title: "New Message",
             message: `${senderName}: ${trimmedMessage || (mediaUrl ? fileName || "Sent an attachment" : "Sent a message")}`,
             actionUrl: `/${channel}/${role}/messages/${conversationId}`,
+            channel: channel === "real-estate" ? "real-estate" : "ecommerce",
             metadata: {
               conversationId: conversationId.toString(),
               senderId: senderId.toString(),

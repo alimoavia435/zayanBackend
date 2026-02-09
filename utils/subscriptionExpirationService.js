@@ -32,6 +32,7 @@ export const checkExpiringSubscriptions = async (io = null) => {
             subscription.role === "ecommerceSeller"
               ? "/ecommerce/seller/subscription"
               : "/real-estate/seller/subscription",
+          channel: subscription.role === "ecommerceSeller" ? "ecommerce" : "real-estate",
           metadata: {
             planId: subscription.planId._id.toString(),
             planName: subscription.planId.name,
@@ -46,7 +47,8 @@ export const checkExpiringSubscriptions = async (io = null) => {
       }
     }
 
-    // Check for expired subscriptions and mark them as expired
+    // Check for expired subscriptions and mark them as expired.
+    // Idempotent: once status is "expired", getMySubscription/createProduct won't find them as "active", so only one path fires analytics per subscription.
     const expiredSubscriptions = await UserSubscription.find({
       status: "active",
       endDate: { $lt: now },
@@ -56,7 +58,7 @@ export const checkExpiringSubscriptions = async (io = null) => {
       subscription.status = "expired";
       await subscription.save();
 
-      // Track expiration analytics
+      // Track expiration analytics (single place per subscription; other code paths only update status, no analytics)
       try {
         await AnalyticsEvent.create({
           eventType: "subscription_expired",
